@@ -1,4 +1,5 @@
 import './style.css';
+import yaml from 'js-yaml';
 import { buildModel } from '../core/model.mjs';
 import { renderHtml } from '../core/render.mjs';
 import { parseSpec } from './parse.js';
@@ -7,7 +8,7 @@ import { createViewer } from './viewer.js';
 import { renderTree } from './tree.js';
 import {
   isTauri, extOf, baseName, isSpecFile,
-  openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportHtml,
+  openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportAs,
 } from './fileio.js';
 import { SAMPLE_NAME, SAMPLE_YAML } from './sample.js';
 
@@ -22,9 +23,14 @@ app.innerHTML = `
       <button class="btn" id="btn-save">${ic('save')}저장</button>
     </div>
     <div class="tb-sep"></div>
-    <button class="btn primary" id="btn-convert">${ic('refresh')}변환</button>
-    <div class="tb-sep"></div>
-    <button class="btn" id="btn-export">${ic('export')}내보내기</button>
+    <div class="export-wrap">
+      <button class="btn primary" id="btn-export">${ic('export')}내보내기${ic('chevron', 13)}</button>
+      <div class="export-menu hidden" id="export-menu">
+        <button class="export-item" data-fmt="yaml">${ic('file')}<span class="ex-txt"><b>YAML로 저장</b><em>편집 중인 스펙 (.yaml)</em></span></button>
+        <button class="export-item" data-fmt="json">${ic('file')}<span class="ex-txt"><b>JSON으로 저장</b><em>스펙을 JSON으로 변환 (.json)</em></span></button>
+        <button class="export-item" data-fmt="html">${ic('doc')}<span class="ex-txt"><b>HTML 문서로 내보내기</b><em>표 중심 명세서 (.html)</em></span></button>
+      </div>
+    </div>
     <div class="tb-spacer"></div>
     <div class="status-pill ok" id="doc-status"><span class="dot"></span>유효한 문서</div>
   </div>
@@ -240,21 +246,47 @@ async function doSave() {
   } catch (e) { alert('저장 실패: ' + (e.message || e)); }
 }
 
-document.getElementById('btn-convert').addEventListener('click', () => {
-  setViewerTab('doc');
-  updatePreview();
+// ---------- 내보내기 드롭다운 ----------
+const exportBtn = document.getElementById('btn-export');
+const exportMenu = document.getElementById('export-menu');
+exportBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  exportMenu.classList.toggle('hidden');
 });
+exportMenu.querySelectorAll('.export-item').forEach((it) => {
+  it.addEventListener('click', () => {
+    exportMenu.classList.add('hidden');
+    exportSpec(it.dataset.fmt);
+  });
+});
+document.addEventListener('click', () => exportMenu.classList.add('hidden'));
 
-document.getElementById('btn-export').addEventListener('click', async () => {
+// fmt: 'yaml' | 'json' | 'html'
+async function exportSpec(fmt) {
   const f = activePath ? openFiles.get(activePath) : null;
   if (!f) return;
   const { doc, error } = parseSpec(f.content, f.ext);
   if (error) { alert('문서에 오류가 있어 내보낼 수 없습니다: ' + error.message); return; }
-  const html = renderHtml(buildModel(doc));
-  const outName = f.name.replace(/\.(ya?ml|json)$/i, '') + '.html';
-  try { await exportHtml(outName, html); }
-  catch (e) { alert('내보내기 실패: ' + (e.message || e)); }
-});
+  const stem = f.name.replace(/\.(ya?ml|json)$/i, '');
+  let content, outName;
+  try {
+    if (fmt === 'html') {
+      content = renderHtml(buildModel(doc));
+      outName = stem + '.html';
+    } else if (fmt === 'json') {
+      // 이미 JSON이면 원본 유지, 아니면 변환
+      content = f.ext === 'json' ? f.content : JSON.stringify(doc, null, 2);
+      outName = stem + '.json';
+    } else { // yaml
+      // 이미 YAML이면 주석·서식 보존 위해 원본 유지, 아니면 변환
+      content = f.ext === 'json' ? yaml.dump(doc, { lineWidth: -1, noRefs: true }) : f.content;
+      outName = stem + '.yaml';
+    }
+    await exportAs(outName, content, fmt);
+  } catch (e) {
+    alert('내보내기 실패: ' + (e.message || e));
+  }
+}
 
 // ---------- 뷰어 탭 ----------
 function setViewerTab(tab) {
@@ -269,21 +301,40 @@ document.querySelectorAll('.vtab').forEach((el) => {
 setupGutters();
 function setupGutters() {
   const root = document.documentElement;
+  const body = document.querySelector('.body');
+  const MIN = 200;         // 탐색기·에디터 최소 폭
+  const VIEWER_MIN = 280;  // 뷰어 최소 폭
+
   document.querySelectorAll('.gutter').forEach((g) => {
     g.addEventListener('mousedown', (e) => {
       e.preventDefault();
       const which = g.dataset.gutter;
       const varName = which === 'tree' ? '--w-tree' : '--w-editor';
       const startX = e.clientX;
-      const start = parseInt(getComputedStyle(root).getPropertyValue(varName));
+      const px = (name) => parseInt(getComputedStyle(root).getPropertyValue(name));
+      const start = px(varName);
+
+      // 드래그 동안 뷰어의 iframe/Swagger UI가 마우스 이벤트를 가로채지 못하도록
+      // 전체 화면 오버레이를 덮는다 (끊김·값 튐 방지의 핵심).
+      const ov = document.createElement('div');
+      ov.className = 'resize-overlay';
+      document.body.appendChild(ov);
+
       const onMove = (ev) => {
-        const w = Math.max(160, Math.min(760, start + (ev.clientX - startX)));
-        root.style.setProperty(varName, w + 'px');
+        const total = body.clientWidth;
+        const otherFixed = which === 'tree' ? px('--w-editor') : px('--w-tree');
+        const maxW = total - otherFixed - VIEWER_MIN - 12; // 두 거터(6px×2) 여유
+        const w = Math.max(MIN, Math.min(maxW, start + (ev.clientX - startX)));
+        root.style.setProperty(varName, Math.round(w) + 'px');
       };
-      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); document.body.style.cursor = ''; };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      document.body.style.cursor = 'col-resize';
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        ov.remove();
+        editor.view.requestMeasure(); // CodeMirror 레이아웃 재측정
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
     });
   });
 }
@@ -344,6 +395,7 @@ function ic(name, size = 16) {
     doc: '<path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 13h6M9 17h6"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
+    chevron: '<path d="M6 9l6 6 6-6"/>',
   }[name] || '';
   const fill = name === 'folder' ? '#e8b64a' : 'none';
   const stroke = name === 'folder' ? '#c99a2e' : 'currentColor';

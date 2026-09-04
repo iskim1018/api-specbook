@@ -119,20 +119,25 @@ export async function saveAsDialog(defaultName, content) {
   return defaultName;
 }
 
-// ---- 내보내기 (HTML) ----
-export async function exportHtml(defaultName, html) {
+// ---- 내보내기 (YAML / JSON / HTML) ----
+const EXPORT_FILTERS = {
+  yaml: { name: 'YAML', extensions: ['yaml', 'yml'] },
+  json: { name: 'JSON', extensions: ['json'] },
+  html: { name: 'HTML', extensions: ['html'] },
+};
+const EXPORT_MIME = { yaml: 'text/yaml', json: 'application/json', html: 'text/html' };
+
+export async function exportAs(defaultName, content, fmt) {
+  const filter = EXPORT_FILTERS[fmt] || { name: 'File', extensions: [fmt] };
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog');
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-    const path = await save({
-      defaultPath: defaultName,
-      filters: [{ name: 'HTML', extensions: ['html'] }],
-    });
+    const path = await save({ defaultPath: defaultName, filters: [filter] });
     if (!path) return null;
-    await writeTextFile(path, html);
+    await writeTextFile(path, content);
     return path;
   }
-  downloadBrowser(defaultName, html, 'text/html');
+  downloadBrowser(defaultName, content, EXPORT_MIME[fmt] || 'text/plain');
   return defaultName;
 }
 

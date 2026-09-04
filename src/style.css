@@ -210,4 +210,28 @@ body {
 .drop-card .big { font-size: 20px; font-weight: 800; color: var(--ink); }
 .drop-card .sub { font-size: 13px; color: var(--ink-2); }
 
+/* ===== 리사이즈 드래그 오버레이 (iframe 이벤트 가로채기 방지) ===== */
+.resize-overlay { position: fixed; inset: 0; z-index: 9999; cursor: col-resize; }
+
+/* ===== 내보내기 드롭다운 ===== */
+.export-wrap { position: relative; }
+#btn-export svg:last-child { margin-left: -2px; opacity: .9; }
+.export-menu {
+  position: absolute; top: 42px; left: 0; z-index: 100;
+  min-width: 248px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--border-strong);
+  border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.14);
+}
+.export-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; border: 0; background: transparent; border-radius: 7px;
+  cursor: pointer; text-align: left; color: var(--ink); font-family: var(--ui);
+}
+.export-item:hover { background: var(--accent-soft); }
+.export-item svg { stroke: var(--ink-2); flex: 0 0 auto; }
+.export-item:hover svg { stroke: var(--accent); }
+.ex-txt { display: flex; flex-direction: column; line-height: 1.3; }
+.ex-txt b { font-size: 12.5px; font-weight: 600; }
+.ex-txt em { font-style: normal; font-size: 11px; color: var(--ink-3); }
+
 .hidden { display: none !important; }
