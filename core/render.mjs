@@ -20,7 +20,8 @@ const PARAM_LABEL = { path: 'Path 파라미터', query: 'Query 파라미터', he
 
 export function renderHtml(model, opts = {}) {
   const title = model.info.title ?? 'API 명세서';
-  const version = model.info.version ? `v${model.info.version}` : '';
+  // 버전에 이미 'v' 접두어가 있으면(v0.1 등) 중복 방지
+  const version = model.info.version ? `v${String(model.info.version).replace(/^v/i, '')}` : '';
   const generatedAt = opts.generatedAt ?? new Date().toISOString().slice(0, 10);
 
   // 문서 섹션 번호: 1 개요, (2 인증), 이후 태그 그룹 순번
