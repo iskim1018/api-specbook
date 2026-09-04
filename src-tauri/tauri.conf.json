@@ -50,7 +50,6 @@
       "debugApplicationIdSuffix": ".debug"
     },
     "macOS": {
-      "signingIdentity": "Developer ID Application: Prompt Technology, Co., Ltd. (P4S6KATL7C)",
       "minimumSystemVersion": "10.15"
     }
   }
