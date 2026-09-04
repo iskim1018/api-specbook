@@ -233,9 +233,11 @@ function renderTabs() {
   bar.innerHTML = '';
   for (const f of openFiles.values()) {
     const tab = document.createElement('div');
-    tab.className = 'tab' + (f.path === activePath ? ' active' : '');
+    const isActive = f.path === activePath;
+    tab.className = 'tab' + (isActive ? ' active' : '');
+    const dot = f.dirty ? '<span class="dirty-dot"></span>' : isActive ? '<span class="tab-dot"></span>' : '';
     tab.innerHTML =
-      (f.dirty ? '<span class="dirty-dot"></span>' : '') +
+      dot +
       `<span>${escapeHtml(f.name)}</span>` +
       `<span class="close">${ic('x', 13)}</span>`;
     tab.addEventListener('click', (e) => {

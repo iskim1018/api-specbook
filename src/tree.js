@@ -4,8 +4,8 @@
 const collapsed = new Set(); // 접힌 폴더 path
 
 const svgChevron = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
-const svgFolder = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#c99a2e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
-const svgFolderOpen = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#c99a2e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2M3 7v11a2 2 0 0 0 2 2h13.5a1.5 1.5 0 0 0 1.45-1.11L22 11H6.5a2 2 0 0 0-1.94 1.5z"/></svg>`;
+const svgFolder = `<svg viewBox="0 0 24 24" width="15" height="15" fill="#e8b64a" stroke="#c99a2e" stroke-width="1"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+const svgFolderOpen = svgFolder;
 const svgFileOther = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#b8b1a8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>`;
 
 function extBadge(node) {
@@ -55,7 +55,8 @@ function renderNode(node, depth, ctx, frag) {
     const dirty = ctx.dirtyPaths?.has(node.path);
     row.className = 'row file' + (active ? ' active' : '') + (node.isSpec ? '' : ' disabled');
     row.style.paddingLeft = pad + 8 + 'px';
-    row.innerHTML = `${extBadge(node)}<span class="name">${esc(node.name)}</span>${dirty ? '<span class="dirty-dot"></span>' : ''}`;
+    const dot = dirty ? '<span class="dirty-dot"></span>' : active ? '<span class="tab-dot"></span>' : '';
+    row.innerHTML = `${extBadge(node)}<span class="name">${esc(node.name)}</span>${dot}`;
     row.title = node.isSpec ? node.path : `${node.name} (지원하지 않는 형식)`;
     if (node.isSpec) row.addEventListener('click', () => ctx.onSelect(node));
     frag.appendChild(row);

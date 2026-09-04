@@ -4,10 +4,34 @@ import { yaml } from '@codemirror/lang-yaml';
 import { json } from '@codemirror/lang-json';
 import { linter, lintGutter } from '@codemirror/lint';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { tags as t } from '@lezer/highlight';
 import { parseSpec } from './parse.js';
 
 const langConf = new Compartment();
 const themeConf = new Compartment();
+
+// 디자인 팔레트에 맞춘 라이트 구문 강조 (key/str/num/com/punct)
+const lightHighlight = HighlightStyle.define([
+  { tag: [t.definition(t.propertyName), t.propertyName, t.keyword, t.atom], color: '#1f6f8b' },
+  { tag: [t.string, t.special(t.string), t.attributeValue], color: '#a4620b' },
+  { tag: [t.number, t.bool, t.null, t.literal], color: '#7c3aed' },
+  { tag: [t.comment, t.lineComment, t.blockComment], color: '#a8a29e', fontStyle: 'italic' },
+  { tag: [t.punctuation, t.separator, t.meta, t.operator], color: '#78716c' },
+  { tag: [t.invalid], color: '#d63b3b' },
+]);
+
+// 라이트 모드: 기본 텍스트 색상·거터를 디자인에 맞춤 + 구문 강조
+const lightTheme = [
+  EditorView.theme({
+    '&': { color: '#1c1917' },
+    '.cm-gutters': { background: '#faf9f8', color: '#c4bdb3', border: 'none', borderRight: '1px solid #e5e2de' },
+    '.cm-activeLineGutter': { background: 'transparent' },
+    '.cm-activeLine': { background: 'rgba(53,87,214,.04)' },
+    '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { background: '#dbe6ff' },
+  }),
+  syntaxHighlighting(lightHighlight),
+];
 
 function langFor(ext) {
   return ext === 'json' ? json() : yaml();
@@ -52,7 +76,7 @@ export function createEditor(host, { ext = 'yaml', doc = '', dark = false, onCha
       extensions: [
         basicSetup,
         langConf.of(langFor(ext)),
-        themeConf.of(dark ? oneDark : []),
+        themeConf.of(dark ? oneDark : lightTheme),
         lintGutter(),
         makeLinter(getExt),
         updateListener,
@@ -79,7 +103,7 @@ export function createEditor(host, { ext = 'yaml', doc = '', dark = false, onCha
       view.dispatch({ effects: langConf.reconfigure(langFor(newExt)) });
     },
     setTheme(isDark) {
-      view.dispatch({ effects: themeConf.reconfigure(isDark ? oneDark : []) });
+      view.dispatch({ effects: themeConf.reconfigure(isDark ? oneDark : lightTheme) });
     },
     focus: () => view.focus(),
     destroy: () => view.destroy(),

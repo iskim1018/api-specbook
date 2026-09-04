@@ -479,6 +479,7 @@ pre.json { max-height: 480px; overflow: auto; }
   .sidebar { transform: translateX(-100%); transition: transform .2s; }
   .sidebar.open { transform: none; box-shadow: 0 0 0 100vw rgba(0,0,0,.25); }
   .nav-toggle { display: block; position: fixed; top: 10px; left: 10px; z-index: 20; border: 1px solid var(--hair-strong); background: var(--paper); border-radius: 3px; padding: 6px 10px; font-size: 16px; cursor: pointer; }
+  .nav-toggle[aria-expanded="true"] { display: none; }
   .main { margin-left: 0; padding: 56px 18px 60px; }
 }
 
@@ -613,7 +614,12 @@ const JS = `
 
   // 모바일 목차
   var toggle = document.getElementById('navToggle'), sidebar = document.getElementById('sidebar');
-  toggle.addEventListener('click', function () { sidebar.classList.toggle('open'); });
-  sidebar.addEventListener('click', function (e) { if (e.target.closest('a')) sidebar.classList.remove('open'); });
+  function setNav(open) { sidebar.classList.toggle('open', open); toggle.setAttribute('aria-expanded', String(open)); }
+  toggle.addEventListener('click', function (e) { e.stopPropagation(); setNav(!sidebar.classList.contains('open')); });
+  // 링크 클릭 또는 사이드바 바깥 클릭 시 접기
+  sidebar.addEventListener('click', function (e) { if (e.target.closest('a')) setNav(false); });
+  document.addEventListener('click', function (e) {
+    if (sidebar.classList.contains('open') && !e.target.closest('#sidebar') && !e.target.closest('#navToggle')) setNav(false);
+  });
 })();
 `;

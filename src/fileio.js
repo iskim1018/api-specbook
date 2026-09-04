@@ -11,6 +11,11 @@ export function extOf(path) {
 export function baseName(path) {
   return (path || '').split(/[\\/]/).pop();
 }
+// 저장 다이얼로그가 확장자 없는 경로를 돌려줄 때 대비해 강제로 붙인다.
+function ensureExt(path, exts) {
+  if (!path) return path;
+  return exts.includes(extOf(path)) ? path : `${path}.${exts[0]}`;
+}
 export function isSpecFile(path) {
   return SPEC_EXTS.includes(extOf(path));
 }
@@ -130,11 +135,12 @@ export async function saveAsDialog(defaultName, content) {
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog');
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-    const path = await save({
+    let path = await save({
       defaultPath: defaultName,
       filters: [{ name: 'OpenAPI', extensions: ['yaml', 'yml', 'json'] }],
     });
     if (!path) return null;
+    path = ensureExt(path, ['yaml', 'yml', 'json']);
     await writeTextFile(path, content);
     return path;
   }
@@ -155,8 +161,9 @@ export async function exportAs(defaultName, content, fmt) {
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog');
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-    const path = await save({ defaultPath: defaultName, filters: [filter] });
+    let path = await save({ defaultPath: defaultName, filters: [filter] });
     if (!path) return null;
+    path = ensureExt(path, filter.extensions);
     await writeTextFile(path, content);
     return path;
   }
