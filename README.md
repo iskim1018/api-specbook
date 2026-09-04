@@ -42,6 +42,19 @@ macOS 서명·공증을 켜려면 저장소 Settings → Secrets → Actions 에
 
 > `.p12` base64: `base64 -i cert.p12 | pbcopy` (인증서·개인키를 키체인에서 함께 내보내기)
 
+### 자동 업데이트 (Tauri updater)
+
+앱은 시작 시 GitHub 최신 Release의 `latest.json`을 확인해 새 버전이 있으면 설치를 안내한다.
+CI가 업데이트 아티팩트를 서명하려면 아래 Secret도 등록한다 (없으면 서명 스텝에서 실패):
+
+| Secret | 설명 |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | `tauri signer generate`로 만든 **개인키 파일 내용** |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 개인키 비밀번호 (없이 생성했으면 빈 값) |
+
+- 공개키는 `src-tauri/tauri.conf.json`의 `plugins.updater.pubkey`에 이미 들어 있다 (비밀 아님).
+- 개인키는 저장소에 커밋하지 말 것. 분실 시 새 키를 만들고 pubkey를 교체해야 하며, 기존 사용자는 자동 업데이트가 끊긴다.
+
 ## CLI (oas2html)
 
 ```bash

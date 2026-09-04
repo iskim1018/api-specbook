@@ -2,7 +2,7 @@ import './style.css';
 import logoUrl from './assets/logo.png';
 import yaml from 'js-yaml';
 import { buildModel } from '../core/model.mjs';
-import { renderHtml } from '../core/render.mjs';
+import { renderHtml, HTML_THEMES } from '../core/render.mjs';
 import { parseSpec } from './parse.js';
 import { createEditor } from './editor.js';
 import { createViewer } from './viewer.js';
@@ -12,6 +12,7 @@ import {
   openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportAs, firstSpecNode,
 } from './fileio.js';
 import { SAMPLE_NAME, SAMPLE_YAML } from './sample.js';
+import { checkForUpdate } from './updater.js';
 
 // ---------- 앱 셸 ----------
 const app = document.getElementById('app');
@@ -36,6 +37,7 @@ app.innerHTML = `
     </div>
     <div class="tb-spacer"></div>
     <div class="status-pill ok" id="doc-status">${ic('check', 14)}<span>정상</span></div>
+    <button class="icon-btn" id="btn-theme" title="라이트 / 다크 전환">${ic('moon', 17)}</button>
   </div>
 
   <div class="body">
@@ -67,11 +69,16 @@ app.innerHTML = `
 
     <!-- 뷰어 -->
     <div class="panel viewer-panel">
-      <div class="panel-head" style="padding:0;">
+      <div class="panel-head" style="padding:0 10px 0 0;">
         <div class="viewer-tabs">
           <div class="vtab" data-vtab="swagger">${ic('layers')}Swagger UI</div>
           <div class="vtab active" data-vtab="doc">${ic('doc')}문서 (HTML)</div>
         </div>
+        <label class="html-theme-wrap" title="문서(HTML) 테마">${ic('palette', 14)}
+          <select class="html-theme" id="html-theme">
+            ${HTML_THEMES.map((t) => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+        </label>
       </div>
       <div class="viewer-body" id="viewer-body"></div>
     </div>
@@ -88,14 +95,40 @@ let treeRoot = null;         // 폴더 열기로 얻은 트리 루트 노드
 let folderName = null;
 let activePath = null;
 let hideNonSpec = false;     // 스펙(YAML·JSON) 파일만 표시
+let htmlTheme = 'editorial'; // 문서(HTML) 출력 테마
+let appTheme = loadAppTheme(); // 'light' | 'dark'
+
+function loadAppTheme() {
+  try { const s = localStorage.getItem('appTheme'); if (s === 'light' || s === 'dark') return s; } catch {}
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function applyAppTheme(t, updateEditor = true) {
+  appTheme = t;
+  document.documentElement.dataset.theme = t;
+  const btn = document.getElementById('btn-theme');
+  if (btn) btn.innerHTML = ic(t === 'dark' ? 'sun' : 'moon', 17);
+  if (updateEditor) editor.setTheme(t === 'dark');
+  try { localStorage.setItem('appTheme', t); } catch {}
+}
+// 인스턴스 생성 전에 data-theme·버튼만 반영 (에디터는 아래에서 dark 옵션으로)
+applyAppTheme(appTheme, false);
 
 // ---------- 인스턴스 ----------
 const viewer = createViewer(document.getElementById('viewer-body'));
 const editor = createEditor(document.getElementById('cm-host'), {
   ext: 'yaml',
   doc: '',
+  dark: appTheme === 'dark',
   onChange: onEditorChange,
   onCursor: ({ line, col }) => { document.getElementById('sb-pos').textContent = `줄 ${line}, 칸 ${col}`; },
+});
+
+document.getElementById('btn-theme').addEventListener('click', () => {
+  applyAppTheme(appTheme === 'dark' ? 'light' : 'dark');
+});
+document.getElementById('html-theme').addEventListener('change', (e) => {
+  htmlTheme = e.target.value;
+  updatePreview();
 });
 
 // ---------- 미리보기 갱신 ----------
@@ -131,7 +164,7 @@ function updatePreview() {
 
   try {
     const model = buildModel(doc);
-    const html = renderHtml(model);
+    const html = renderHtml(model, { theme: htmlTheme });
     viewer.setContent({ html, spec: doc });
   } catch (e) {
     errChip.className = 'err-chip';
@@ -287,7 +320,7 @@ async function exportSpec(fmt) {
   let content, outName;
   try {
     if (fmt === 'html') {
-      content = renderHtml(buildModel(doc));
+      content = renderHtml(buildModel(doc), { theme: htmlTheme });
       outName = stem + '.html';
     } else if (fmt === 'json') {
       // 이미 JSON이면 원본 유지, 아니면 변환
@@ -397,6 +430,9 @@ window.addEventListener('keydown', (e) => {
 // ---------- 초기 로드: 예시 스펙 ----------
 openContent({ path: SAMPLE_NAME, name: SAMPLE_NAME, content: SAMPLE_YAML });
 
+// ---------- 시작 시 업데이트 확인 (설치본에서만, 업데이트 있을 때만 안내) ----------
+setTimeout(() => checkForUpdate({ silent: true }), 1500);
+
 // ---------- 아이콘 ----------
 function ic(name, size = 16) {
   const s = size;
@@ -413,6 +449,9 @@ function ic(name, size = 16) {
     alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
     check: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
     chevron: '<path d="M6 9l6 6 6-6"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    palette: '<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="15.5" cy="10" r="1"/><path d="M12 21a3 3 0 0 0 0-6 2 2 0 0 1 0-4"/>',
   }[name] || '';
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }

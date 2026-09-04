@@ -3,9 +3,11 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { yaml } from '@codemirror/lang-yaml';
 import { json } from '@codemirror/lang-json';
 import { linter, lintGutter } from '@codemirror/lint';
+import { oneDark } from '@codemirror/theme-one-dark';
 import { parseSpec } from './parse.js';
 
 const langConf = new Compartment();
+const themeConf = new Compartment();
 
 function langFor(ext) {
   return ext === 'json' ? json() : yaml();
@@ -30,7 +32,7 @@ function makeLinter(getExt) {
   }, { delay: 350 });
 }
 
-export function createEditor(host, { ext = 'yaml', doc = '', onChange, onCursor } = {}) {
+export function createEditor(host, { ext = 'yaml', doc = '', dark = false, onChange, onCursor } = {}) {
   let currentExt = ext;
   const getExt = () => currentExt;
 
@@ -50,13 +52,13 @@ export function createEditor(host, { ext = 'yaml', doc = '', onChange, onCursor 
       extensions: [
         basicSetup,
         langConf.of(langFor(ext)),
+        themeConf.of(dark ? oneDark : []),
         lintGutter(),
         makeLinter(getExt),
         updateListener,
         EditorView.theme({
           '&': { height: '100%' },
           '.cm-scroller': { fontFamily: 'var(--mono)', fontSize: '12.5px' },
-          '.cm-gutters': { background: 'var(--panel-2)', border: 'none', borderRight: '1px solid var(--border)' },
         }),
       ],
     }),
@@ -75,6 +77,9 @@ export function createEditor(host, { ext = 'yaml', doc = '', onChange, onCursor 
     setExt(newExt) {
       currentExt = newExt;
       view.dispatch({ effects: langConf.reconfigure(langFor(newExt)) });
+    },
+    setTheme(isDark) {
+      view.dispatch({ effects: themeConf.reconfigure(isDark ? oneDark : []) });
     },
     focus: () => view.focus(),
     destroy: () => view.destroy(),

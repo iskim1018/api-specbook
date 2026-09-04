@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "API Specbook",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "io.github.iskim1018.specbook",
   "build": {
     "frontendDist": "../dist-app",
@@ -27,8 +27,17 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/iskim1018/api-specbook/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM4OERBQTlGOUU1MzdFNDkKUldSSmZsT2VuNnFOT0dYSFZaSlhESk1kUlJaRmV3WS95VU9KbU9VZDYwSTJBb0FzOVFNcmZYWmgK"
+    }
+  },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",

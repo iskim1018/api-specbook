@@ -23,6 +23,7 @@ export function renderHtml(model, opts = {}) {
   // 버전에 이미 'v' 접두어가 있으면(v0.1 등) 중복 방지
   const version = model.info.version ? `v${String(model.info.version).replace(/^v/i, '')}` : '';
   const generatedAt = opts.generatedAt ?? new Date().toISOString().slice(0, 10);
+  const theme = THEME_CSS[opts.theme] !== undefined ? opts.theme : 'editorial';
 
   // 문서 섹션 번호: 1 개요, (2 인증), 이후 태그 그룹 순번
   let secNo = 1;
@@ -31,13 +32,13 @@ export function renderHtml(model, opts = {}) {
   const groupNo = model.groups.map(() => secNo++);
 
   return `<!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="${theme}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} ${esc(version)} API 명세서</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&display=swap">
-<style>${CSS}</style>
+<style>${CSS}${THEME_CSS[theme]}</style>
 </head>
 <body>
 <button class="nav-toggle" id="navToggle" aria-label="목차 열기">☰</button>
@@ -323,6 +324,7 @@ const CSS = `
   --hair: #e8e6e0; --hair-strong: #b9b5aa; --rule: #33322c; --accent: #12616a; --accent-soft: #efeeea;
   --get: #22764c; --post: #2456a8; --put: #96660f; --patch: #6d4fa3; --delete: #a83a32;
   --ok: #22764c; --err: #a83a32;
+  --field: #ddd9d0; --pre-ink: #45423b;
   --sidebar-w: 300px;
   --sans: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
   --serif: "Noto Serif KR", "Nanum Myeongjo", Batang, AppleMyungjo, serif;
@@ -333,7 +335,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 16px; }
 body { margin: 0; font-family: var(--sans); font-size: 14px; line-height: 1.62; color: var(--ink); background: var(--paper); }
 code, pre { font-family: var(--mono); font-size: 12.5px; }
 code { word-break: break-all; }
-pre { background: var(--panel); border: 1px solid var(--hair); padding: 13px 16px; overflow-x: auto; margin: 8px 0; line-height: 1.5; color: #45423b; }
+pre { background: var(--panel); border: 1px solid var(--hair); padding: 13px 16px; overflow-x: auto; margin: 8px 0; line-height: 1.5; color: var(--pre-ink); }
 a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
 h1 { font-size: 30px; margin: 0; font-family: var(--serif); font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
 h2 { font-size: 21px; } h3 { font-size: 18px; margin: 0; }
@@ -347,7 +349,7 @@ h5 { font-size: 12.5px; font-weight: 600; margin: 16px 0 4px; color: var(--muted
 .sidebar-head { padding: 22px 18px 14px; border-bottom: 1px solid var(--hair); }
 .sidebar-title { font-family: var(--serif); font-weight: 700; font-size: 16px; line-height: 1.4; }
 .sidebar-version { color: var(--muted); font-family: var(--mono); font-size: 11.5px; margin: 2px 0 12px; }
-#navSearch { width: 100%; padding: 7px 10px; border: 1px solid #ddd9d0; border-radius: 3px; font-size: 13px; font-family: inherit; background: var(--paper); }
+#navSearch { width: 100%; padding: 7px 10px; border: 1px solid var(--field); border-radius: 3px; font-size: 13px; font-family: inherit; background: var(--paper); }
 #navSearch::placeholder { color: var(--faint); }
 .nav { overflow-y: auto; padding: 10px 0 28px; flex: 1; }
 .nav-group-title { display: flex; align-items: baseline; gap: 4px; padding: 5px 14px; font-size: 13px; font-weight: 700; line-height: 1.35; color: var(--ink); text-decoration: none; border-left: 2px solid transparent; }
@@ -419,7 +421,7 @@ h5 { font-size: 12.5px; font-weight: 600; margin: 16px 0 4px; color: var(--muted
 .schema-table td.cons { font-family: var(--mono); font-size: 11px; color: var(--faint); }
 .con { display: block; word-break: break-all; }
 .schema-table td.ex code { font-size: 11.5px; color: var(--muted); }
-.nullable { display: inline-block; margin-left: 6px; font-size: 10px; color: var(--faint); border: 1px solid #ddd9d0; border-radius: 2px; padding: 0 4px; font-family: var(--sans); }
+.nullable { display: inline-block; margin-left: 6px; font-size: 10px; color: var(--faint); border: 1px solid var(--field); border-radius: 2px; padding: 0 4px; font-family: var(--sans); }
 .name-cell { display: flex; align-items: baseline; gap: 2px; padding-left: calc(var(--depth) * 18px); position: relative; }
 .name-cell .name { font-family: var(--mono); font-size: 12.5px; font-weight: 600; word-break: break-all; }
 .name-cell .name.variant { font-family: var(--sans); font-weight: 500; color: var(--muted); }
@@ -440,7 +442,7 @@ h5 { font-size: 12.5px; font-weight: 600; margin: 16px 0 4px; color: var(--muted
 .op-id { font-family: var(--mono); font-size: 12px; color: var(--accent); }
 .op-path { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--hair); }
 .op-path code { font-size: 14px; }
-.copy-btn { margin-left: auto; font-size: 11.5px; border: 1px solid #ddd9d0; background: var(--paper); border-radius: 2px; padding: 2px 9px; cursor: pointer; color: var(--faint); }
+.copy-btn { margin-left: auto; font-size: 11.5px; border: 1px solid var(--field); background: var(--paper); border-radius: 2px; padding: 2px 9px; cursor: pointer; color: var(--faint); }
 .copy-btn:hover { color: var(--ink); border-color: var(--hair-strong); }
 .deprecated { font-size: 11px; color: var(--err); border: 1px solid var(--err); border-radius: 2px; padding: 0 5px; margin-left: 8px; vertical-align: middle; font-family: var(--sans); font-weight: 500; }
 .ct { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--faint); margin-left: 6px; }
@@ -448,7 +450,7 @@ h5 { font-size: 12.5px; font-weight: 600; margin: 16px 0 4px; color: var(--muted
 .opt-flag { font-size: 11px; font-weight: 600; color: var(--faint); margin-left: 8px; }
 .callout { border-left: 2px solid var(--err); padding: 8px 0 8px 16px; margin: 16px 0; max-width: 760px; }
 .callout-title { font-weight: 700; font-size: 12px; letter-spacing: .08em; color: var(--err); margin-bottom: 4px; }
-.callout .md { font-size: 13px; color: #57534a; }
+.callout .md { font-size: 13px; color: var(--ink); }
 
 /* responses: 괘선 행 + 상태 점 */
 .response { margin: 0; }
@@ -497,6 +499,32 @@ pre.json { max-height: 480px; overflow: auto; }
   a { color: inherit; }
 }
 `;
+
+// HTML 출력 테마 (기본 CSS의 :root 를 덮어씀)
+export const HTML_THEMES = [
+  { id: 'editorial', name: '기본 (에디토리얼)' },
+  { id: 'dark', name: '다크' },
+  { id: 'modern', name: '모던' },
+];
+
+const THEME_CSS = {
+  editorial: '',
+  dark: `:root{
+  --paper:#16181c; --panel:#1c1f24; --ink:#e7e5df; --muted:#9a958b; --faint:#6f6a61;
+  --hair:#2b2e34; --hair-strong:#3d424a; --rule:#4a4f57; --accent:#6bb6c3; --accent-soft:#20343a;
+  --get:#4fae7a; --post:#5b8fe0; --put:#d1a24a; --patch:#a98be0; --delete:#e0776e;
+  --ok:#4fae7a; --err:#e0776e; --field:#3d424a; --pre-ink:#c9c5bc;
+}
+::selection{background:#2f4a52;color:#fff;}`,
+  modern: `:root{
+  --paper:#ffffff; --panel:#f4f6f8; --ink:#1f2430; --muted:#68707d; --faint:#9aa2af;
+  --hair:#e7ebef; --hair-strong:#c3cad3; --rule:#1f2430; --accent:#2f6feb; --accent-soft:#eef3fe;
+  --get:#1a7f47; --post:#2f6feb; --put:#b5730a; --patch:#7a52c4; --delete:#d33a34;
+  --ok:#1a7f47; --err:#d33a34; --field:#d4dae1; --pre-ink:#2f3742;
+}
+h1,h2,h3,.sidebar-title,.tag-title{font-family:var(--sans);}
+h1{letter-spacing:-.02em;}`,
+};
 
 const JS = `
 (function () {
