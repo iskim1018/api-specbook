@@ -19,6 +19,29 @@ npm run dev          # 프론트엔드만 브라우저에서 (Tauri 없이 UI �
 - 파일/폴더 열기, 드래그앤드롭, 저장, HTML 내보내기 지원.
 - 편집하는 동안 우측 미리보기가 실시간 갱신되고, 문법 오류는 에디터에 인라인 표시된다.
 
+## 릴리스 (GitHub Actions)
+
+`v*` 태그를 push 하면 `.github/workflows/release.yml` 이 macOS(Universal) + Windows 설치본을 빌드해 GitHub Release 초안에 첨부한다.
+
+```bash
+npm version patch          # package.json 버전 올리고 v0.1.1 태그 생성
+git push origin main --tags
+```
+
+macOS 서명·공증을 켜려면 저장소 Settings → Secrets → Actions 에 아래를 등록한다 (없으면 mac 빌드는 서명 단계에서 실패, Windows 빌드는 정상):
+
+| Secret | 설명 |
+|---|---|
+| `APPLE_CERTIFICATE` | Developer ID Application 인증서(.p12)를 base64 인코딩한 값 |
+| `APPLE_CERTIFICATE_PASSWORD` | 위 .p12 비밀번호 |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: … (TEAMID)` 전체 문자열 |
+| `KEYCHAIN_PASSWORD` | CI 임시 키체인용 임의 문자열 |
+| `APPLE_ID` | 애플 계정 이메일 (공증용) |
+| `APPLE_PASSWORD` | 앱 암호(app-specific password) |
+| `APPLE_TEAM_ID` | 팀 ID (예: P4S6KATL7C) |
+
+> `.p12` base64: `base64 -i cert.p12 | pbcopy` (인증서·개인키를 키체인에서 함께 내보내기)
+
 ## CLI (oas2html)
 
 ```bash

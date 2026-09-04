@@ -1,0 +1,72 @@
+name: Release
+
+# v* 태그를 push 하면 macOS(서명·공증) + Windows 설치본을 빌드해
+# GitHub Release 초안에 첨부한다. 수동 실행(workflow_dispatch)도 가능.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest      # Apple Silicon + Intel 통합 바이너리
+            args: '--target universal-apple-darwin'
+            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+          - platform: windows-latest     # .msi / .exe(NSIS)
+            args: ''
+            rust-targets: ''
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Rust 설치
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Rust 캐시
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: 프론트엔드 의존성 설치
+        run: npm ci
+
+      - name: 빌드 + 릴리스 첨부
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # --- macOS 코드 서명 (secrets 없으면 서명 단계에서 실패하므로 mac 배포 전 등록 필요) ---
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          # --- macOS 공증 (있으면 자동 공증+스테이플, 없으면 서명만) ---
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.run_number) }}
+          releaseName: 'API Specbook ${{ github.ref_type == ''tag'' && github.ref_name || github.run_number }}'
+          releaseBody: |
+            자동 빌드된 릴리스입니다.
+
+            - macOS: `.dmg` (Universal, Apple Silicon + Intel)
+            - Windows: `.msi` / `.exe`
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
