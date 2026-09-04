@@ -1,58 +1,67 @@
-import { extOf } from './fileio.js';
+// 중첩 폴더 트리 렌더링.
+// 노드: 폴더 { name, path, isDir:true, children[] } / 파일 { name, path, isDir:false, ext, isSpec }
 
-const svgChevron = `<span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
-const svgFolder = `<svg width="15" height="15" viewBox="0 0 24 24" fill="#e8b64a" stroke="#c99a2e" stroke-width="1"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+const collapsed = new Set(); // 접힌 폴더 path
 
-function extBadge(name) {
-  const e = extOf(name);
-  if (e === 'json') return `<span class="badge-ext json">{ }</span>`;
-  return `<span class="badge-ext yaml">Y</span>`;
+const svgChevron = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
+const svgFolder = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#c99a2e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+const svgFolderOpen = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#c99a2e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2M3 7v11a2 2 0 0 0 2 2h13.5a1.5 1.5 0 0 0 1.45-1.11L22 11H6.5a2 2 0 0 0-1.94 1.5z"/></svg>`;
+const svgFileOther = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#b8b1a8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>`;
+
+function extBadge(node) {
+  if (node.ext === 'yaml' || node.ext === 'yml') return `<span class="badge-ext yaml">Y</span>`;
+  if (node.ext === 'json') return `<span class="badge-ext json">{ }</span>`;
+  return svgFileOther;
 }
 
-// files: [{ path, name, dir }]  → dir 별로 그룹핑해서 렌더
-export function renderTree(el, { files, activePath, dirtyPaths, folderName }, { onSelect }) {
+// hideNonSpec=true 일 때 스펙 파일이 하나도 없는 폴더/비스펙 파일은 숨긴다.
+function isVisible(node, hideNonSpec) {
+  if (!hideNonSpec) return true;
+  if (node.isDir) return (node.children || []).some((c) => isVisible(c, true));
+  return node.isSpec;
+}
+
+export function renderTree(el, { root, activePath, dirtyPaths, hideNonSpec }, { onSelect }) {
   el.innerHTML = '';
-
-  const groups = new Map();
-  for (const f of files) {
-    const key = f.dir || folderName || '열린 파일';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(f);
+  const ctx = { activePath, dirtyPaths, hideNonSpec, onSelect, rerender: () => renderTree(el, { root, activePath, dirtyPaths, hideNonSpec }, { onSelect }) };
+  const frag = document.createDocumentFragment();
+  // 루트의 자식들을 depth 0 부터 렌더 (루트 폴더 자체는 생략해 공간 절약)
+  for (const child of root.children || []) renderNode(child, 0, ctx, frag);
+  if (!frag.childNodes.length) {
+    el.innerHTML = `<div class="tree-hint">표시할 파일이 없습니다.</div>`;
+    return;
   }
+  el.appendChild(frag);
+}
 
-  for (const [dir, items] of groups) {
-    const folder = document.createElement('div');
-    folder.className = 'row folder';
-    folder.innerHTML = `${svgChevron}${svgFolder}<span class="name">${escapeHtml(shortDir(dir))}</span>`;
-    el.appendChild(folder);
+function renderNode(node, depth, ctx, frag) {
+  if (!isVisible(node, ctx.hideNonSpec)) return;
+  const row = document.createElement('div');
+  const pad = 8 + depth * 14;
 
-    const list = document.createElement('div');
-    list.className = 'folder-body';
-    el.appendChild(list);
-
-    folder.addEventListener('click', () => {
-      folder.classList.toggle('collapsed');
-      list.classList.toggle('hidden');
+  if (node.isDir) {
+    const isCol = collapsed.has(node.path);
+    row.className = 'row folder' + (isCol ? ' collapsed' : '');
+    row.style.paddingLeft = pad + 'px';
+    row.innerHTML = `<span class="chev">${svgChevron}</span>${isCol ? svgFolder : svgFolderOpen}<span class="name">${esc(node.name)}</span>`;
+    row.addEventListener('click', () => {
+      if (collapsed.has(node.path)) collapsed.delete(node.path); else collapsed.add(node.path);
+      ctx.rerender();
     });
-
-    for (const f of items) {
-      const row = document.createElement('div');
-      row.className = 'row file' + (f.path === activePath ? ' active' : '');
-      const dirty = dirtyPaths?.has(f.path);
-      row.innerHTML = `${extBadge(f.name)}<span class="name">${escapeHtml(f.name)}</span>${dirty ? '<span class="dirty-dot"></span>' : ''}`;
-      row.title = f.path;
-      row.addEventListener('click', () => onSelect(f));
-      list.appendChild(row);
-    }
+    frag.appendChild(row);
+    if (!isCol) for (const c of node.children || []) renderNode(c, depth + 1, ctx, frag);
+  } else {
+    const active = node.path === ctx.activePath;
+    const dirty = ctx.dirtyPaths?.has(node.path);
+    row.className = 'row file' + (active ? ' active' : '') + (node.isSpec ? '' : ' disabled');
+    row.style.paddingLeft = pad + 8 + 'px';
+    row.innerHTML = `${extBadge(node)}<span class="name">${esc(node.name)}</span>${dirty ? '<span class="dirty-dot"></span>' : ''}`;
+    row.title = node.isSpec ? node.path : `${node.name} (지원하지 않는 형식)`;
+    if (node.isSpec) row.addEventListener('click', () => ctx.onSelect(node));
+    frag.appendChild(row);
   }
 }
 
-function shortDir(dir) {
-  if (!dir) return '열린 파일';
-  const parts = dir.split(/[\\/]/).filter(Boolean);
-  return parts.slice(-1)[0] || dir;
-}
-
-function escapeHtml(s) {
+function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }

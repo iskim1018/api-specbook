@@ -10,6 +10,8 @@ op*.png
 # Tauri / Rust
 src-tauri/target/
 src-tauri/gen/schemas/
+src-tauri/icons/android/
+src-tauri/icons/ios/
 
 # 디자인 캔버스 생성 페이로드 (소스 .dc.html 만 추적)
 design/swagger-studio-ui.html

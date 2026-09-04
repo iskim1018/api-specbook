@@ -44,10 +44,18 @@ export async function openFileDialog() {
   });
 }
 
-// ---- 폴더 열기 → spec 파일 목록 ----
+// ---- 폴더 열기 → 중첩 트리 ----
+// 트리 노드: 폴더 { name, path, isDir:true, children[] }
+//            파일 { name, path, isDir:false, ext, isSpec, content? }
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'dist-app', 'target', '.svn', '.idea']);
+
+function fileNode(name, path, content) {
+  return { name, path, isDir: false, ext: extOf(name), isSpec: isSpecFile(name), ...(content != null ? { content } : {}) };
+}
+
 export async function openFolderDialog() {
   if (!isTauri) {
-    // 브라우저에서는 폴더 트리 대신 다중 파일 선택으로 대체
+    // 브라우저에서는 폴더 구조를 얻을 수 없어 다중 파일 선택으로 대체 (평면)
     return new Promise((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -56,34 +64,49 @@ export async function openFolderDialog() {
       input.onchange = async () => {
         const files = Array.from(input.files || []);
         if (!files.length) return resolve(null);
-        const entries = [];
-        for (const f of files) entries.push({ path: f.name, name: f.name, content: await f.text() });
-        resolve({ dir: '(선택한 파일)', entries });
+        const children = [];
+        for (const f of files) children.push(fileNode(f.name, f.name, await f.text()));
+        resolve({ dir: '(선택한 파일)', root: { name: '선택한 파일', path: '(선택한 파일)', isDir: true, children } });
       };
       input.click();
     });
   }
   const { open } = await import('@tauri-apps/plugin-dialog');
-  const { readDir, readTextFile } = await import('@tauri-apps/plugin-fs');
+  const { readDir } = await import('@tauri-apps/plugin-fs');
   const dir = await open({ directory: true, multiple: false });
   if (!dir) return null;
-  const entries = [];
-  await walk(dir, entries, readDir, readTextFile, 0);
-  return { dir, entries };
+  const children = await walkTree(dir, readDir, 0);
+  return { dir, root: { name: baseName(dir) || dir, path: dir, isDir: true, children } };
 }
 
-async function walk(dir, out, readDir, readTextFile, depth) {
-  if (depth > 4) return;
+async function walkTree(dir, readDir, depth) {
+  if (depth > 6) return [];
   let items;
-  try { items = await readDir(dir); } catch { return; }
+  try { items = await readDir(dir); } catch { return []; }
+  const dirs = [], files = [];
   for (const it of items) {
+    if (it.name.startsWith('.') || SKIP_DIRS.has(it.name)) continue;
     const child = `${dir}/${it.name}`;
     if (it.isDirectory) {
-      await walk(child, out, readDir, readTextFile, depth + 1);
-    } else if (isSpecFile(it.name)) {
-      out.push({ path: child, name: it.name, dir });
+      dirs.push({ name: it.name, path: child, isDir: true, children: await walkTree(child, readDir, depth + 1) });
+    } else {
+      files.push(fileNode(it.name, child));
     }
   }
+  dirs.sort((a, b) => a.name.localeCompare(b.name));
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  return [...dirs, ...files];
+}
+
+// 트리에서 첫 스펙 파일 찾기 (폴더 열면 자동 선택용)
+export function firstSpecNode(node) {
+  if (!node) return null;
+  if (!node.isDir) return node.isSpec ? node : null;
+  for (const c of node.children || []) {
+    const found = firstSpecNode(c);
+    if (found) return found;
+  }
+  return null;
 }
 
 export async function readFile(path) {

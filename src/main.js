@@ -1,4 +1,5 @@
 import './style.css';
+import logoUrl from './assets/logo.png';
 import yaml from 'js-yaml';
 import { buildModel } from '../core/model.mjs';
 import { renderHtml } from '../core/render.mjs';
@@ -8,7 +9,7 @@ import { createViewer } from './viewer.js';
 import { renderTree } from './tree.js';
 import {
   isTauri, extOf, baseName, isSpecFile,
-  openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportAs,
+  openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportAs, firstSpecNode,
 } from './fileio.js';
 import { SAMPLE_NAME, SAMPLE_YAML } from './sample.js';
 
@@ -17,8 +18,10 @@ const app = document.getElementById('app');
 app.innerHTML = `
 <div class="app-shell">
   <div class="toolbar">
+    <img class="brand" src="${logoUrl}" alt="Specbook" title="API Specbook" />
+    <div class="tb-sep"></div>
     <div class="tb-group">
-      <button class="btn ghost-strong" id="btn-open">${ic('file')}파일 열기</button>
+      <button class="btn" id="btn-open">${ic('file')}파일 열기</button>
       <button class="btn" id="btn-folder">${ic('folder')}폴더 열기</button>
       <button class="btn" id="btn-save">${ic('save')}저장</button>
     </div>
@@ -32,13 +35,16 @@ app.innerHTML = `
       </div>
     </div>
     <div class="tb-spacer"></div>
-    <div class="status-pill ok" id="doc-status"><span class="dot"></span>유효한 문서</div>
+    <div class="status-pill ok" id="doc-status">${ic('check', 14)}<span>정상</span></div>
   </div>
 
   <div class="body">
     <!-- 탐색기 -->
     <div class="panel explorer">
-      <div class="panel-head"><span class="panel-title">탐색기</span></div>
+      <div class="panel-head">
+        <span class="panel-title">탐색기</span>
+        <label class="spec-toggle" title="스펙(YAML·JSON) 파일만 표시"><input type="checkbox" id="hide-nonspec"><span>스펙만</span></label>
+      </div>
       <div class="tree" id="tree"></div>
       <div class="dropzone">${ic('upload', 22)}<span>YAML · JSON 파일을<br>여기로 끌어다 놓으세요</span></div>
     </div>
@@ -78,10 +84,10 @@ app.innerHTML = `
 
 // ---------- 상태 ----------
 const openFiles = new Map(); // path -> { path, name, ext, content, dirty }
-let treeFiles = [];          // [{ path, name, dir, content? }]
+let treeRoot = null;         // 폴더 열기로 얻은 트리 루트 노드
 let folderName = null;
 let activePath = null;
-let lastValidStatus = { ok: true, count: 0 };
+let hideNonSpec = false;     // 스펙(YAML·JSON) 파일만 표시
 
 // ---------- 인스턴스 ----------
 const viewer = createViewer(document.getElementById('viewer-body'));
@@ -113,7 +119,7 @@ function updatePreview() {
     sbValid.className = 'valid err';
     sbValid.innerHTML = '<span class="dot"></span>구문 오류';
     docStatus.className = 'status-pill err';
-    docStatus.innerHTML = `<span class="dot"></span>오류 1개`;
+    docStatus.innerHTML = `${ic('alert', 14)}<span>오류 발견</span>`;
     return;
   }
 
@@ -121,7 +127,7 @@ function updatePreview() {
   sbValid.className = 'valid ok';
   sbValid.innerHTML = '<span class="dot"></span>정상';
   docStatus.className = 'status-pill ok';
-  docStatus.innerHTML = `<span class="dot"></span>유효한 문서`;
+  docStatus.innerHTML = `${ic('check', 14)}<span>정상</span>`;
 
   try {
     const model = buildModel(doc);
@@ -210,14 +216,18 @@ function renderTabs() {
 // ---------- 렌더: 트리 ----------
 function refreshTree() {
   const el = document.getElementById('tree');
-  // 폴더를 안 열었으면, 열린 파일들을 트리로 보여준다.
-  const files = treeFiles.length ? treeFiles : [...openFiles.values()].map((f) => ({ path: f.path, name: f.name, dir: null }));
-  if (!files.length) {
+  let root = treeRoot;
+  // 폴더를 안 열었으면, 열린 파일들을 평면 트리로 보여준다.
+  if (!root) {
+    const children = [...openFiles.values()].map((f) => ({ name: f.name, path: f.path, isDir: false, ext: f.ext, isSpec: true }));
+    root = children.length ? { name: '열린 파일', path: '__open__', isDir: true, children } : null;
+  }
+  if (!root) {
     el.innerHTML = `<div class="tree-empty">${ic('folder', 34)}<span>아직 열린 파일이 없습니다.<br>파일 또는 폴더를 여세요.</span></div>`;
     return;
   }
   const dirtyPaths = new Set([...openFiles.values()].filter((f) => f.dirty).map((f) => f.path));
-  renderTree(el, { files, activePath, dirtyPaths, folderName }, { onSelect: selectTreeFile });
+  renderTree(el, { root, activePath, dirtyPaths, hideNonSpec }, { onSelect: selectTreeFile });
 }
 
 // ---------- 툴바 동작 ----------
@@ -229,10 +239,16 @@ document.getElementById('btn-open').addEventListener('click', async () => {
 document.getElementById('btn-folder').addEventListener('click', async () => {
   const r = await openFolderDialog();
   if (!r) return;
-  treeFiles = r.entries.map((e) => ({ path: e.path, name: e.name, dir: e.dir ?? r.dir, content: e.content }));
+  treeRoot = r.root;
   folderName = r.dir;
   refreshTree();
-  if (treeFiles[0]) selectTreeFile(treeFiles[0]);
+  const first = firstSpecNode(treeRoot);
+  if (first) selectTreeFile(first);
+});
+
+document.getElementById('hide-nonspec').addEventListener('change', (e) => {
+  hideNonSpec = e.target.checked;
+  refreshTree();
 });
 
 document.getElementById('btn-save').addEventListener('click', doSave);
@@ -395,11 +411,10 @@ function ic(name, size = 16) {
     doc: '<path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 13h6M9 17h6"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
+    check: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
     chevron: '<path d="M6 9l6 6 6-6"/>',
   }[name] || '';
-  const fill = name === 'folder' ? '#e8b64a' : 'none';
-  const stroke = name === 'folder' ? '#c99a2e' : 'currentColor';
-  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${fill}" stroke="${stroke}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }
 
 function escapeHtml(s) {

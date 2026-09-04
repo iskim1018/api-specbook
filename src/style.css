@@ -45,6 +45,7 @@ body {
   background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
+.brand { height: 22px; width: auto; display: block; flex: 0 0 auto; }
 .tb-group { display: flex; align-items: center; gap: 2px; }
 .tb-sep { width: 1px; height: 24px; background: var(--border); margin: 0 6px; }
 .tb-spacer { flex: 1 1 auto; }
@@ -101,6 +102,11 @@ body {
 .panel-title {
   font-size: 11px; font-weight: 700; letter-spacing: .6px; color: var(--ink-3); text-transform: uppercase;
 }
+.spec-toggle {
+  display: flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: var(--ink-3); user-select: none;
+}
+.spec-toggle input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
 /* ===== Explorer ===== */
 .explorer { background: var(--panel-2); border-right: 1px solid var(--border); }
@@ -111,19 +117,23 @@ body {
 }
 .tree-empty svg { stroke: #cfcac3; }
 .row {
-  display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px;
+  display: flex; align-items: center; gap: 7px; height: 27px; padding: 0 8px;
   border-radius: 6px; color: var(--ink-2); cursor: pointer; position: relative;
 }
 .row:hover { background: #f0eeeb; }
 .row.folder { font-weight: 600; color: var(--ink); }
-.row.file { margin-left: 16px; }
 .row.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .row.active::before {
-  content: ""; position: absolute; left: -3px; top: 5px; bottom: 5px; width: 3px; border-radius: 3px; background: var(--accent);
+  content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; border-radius: 3px; background: var(--accent);
 }
+.row.disabled { color: #bfb8af; cursor: default; }
+.row.disabled:hover { background: transparent; }
 .row .name { flex: 1; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .chev { transition: transform .12s; color: #78716c; display: inline-flex; }
+.row .chev { transition: transform .12s; color: #a8a29e; display: inline-flex; flex: 0 0 auto; }
+.row .chev svg { display: block; }
 .row.collapsed .chev { transform: rotate(-90deg); }
+.row svg { flex: 0 0 auto; }
+.tree-hint { padding: 12px 10px; color: var(--ink-3); font-size: 12px; }
 .badge-ext {
   display: inline-flex; align-items: center; justify-content: center;
   width: 16px; height: 16px; border-radius: 4px; font-size: 8px; font-weight: 800; flex: 0 0 auto;
