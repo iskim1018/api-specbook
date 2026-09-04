@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "메인 — 문서(HTML) 탭" },
+    { "file": "SwaggerTab.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "메인 — Swagger UI 탭" },
+    { "file": "EmptyState.dc.html", "x": 3120, "y": 0, "w": 1440, "h": 900, "title": "빈 화면 — 드래그앤드롭" }
+  ],
+  "annotations": [
+    { "id": "note-main", "x": 0, "y": -132, "w": 460, "text": "메인 화면 — 3분할(탐색기 · 에디터 · 뷰어).\n좌측 트리에서 파일 선택, 중앙에서 실시간 편집, 우측 뷰어는 [Swagger UI] / [문서(HTML)] 탭 전환.\n지금은 문서(HTML) 탭 + 에디터에 문법 오류 1건이 인라인으로 표시된 상태." },
+    { "id": "note-swagger", "x": 1560, "y": -132, "w": 460, "text": "같은 화면에서 우측 뷰어가 공식 Swagger UI 탭인 상태.\nGET 오퍼레이션은 펼침, POST·DELETE는 접힘. Try it out은 Swagger UI 쪽에만 존재." },
+    { "id": "note-empty", "x": 3120, "y": -132, "w": 460, "text": "파일이 열리지 않은 시작 화면.\n중앙 드롭존에 YAML/JSON을 끌어다 놓거나 파일 선택/폴더 열기로 시작." }
+  ],
+  "launch": { "view": "focused", "file": "Main.dc.html" }
+}

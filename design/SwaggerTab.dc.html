@@ -1,0 +1,264 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --app:#eceae7; --panel:#ffffff; --panel-2:#faf9f8;
+      --border:#e5e2de; --border-strong:#d6d2cc;
+      --ink:#1c1917; --ink-2:#57534e; --ink-3:#8a827b;
+      --accent:#3557d6; --accent-soft:#eef2fe;
+      --get:#3557d6; --post:#0f9d6b; --put:#c77400; --del:#d63b3b;
+      --key:#1f6f8b; --str:#a4620b; --com:#a8a29e; --num:#7c3aed; --punct:#78716c;
+      --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+      --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:var(--ui);color:var(--ink);background:var(--app);
+      -webkit-font-smoothing:antialiased;font-size:13px;line-height:1.45;}
+    a{color:var(--accent);} a:hover{color:#2743a8;}
+  </style>
+</helmet>
+
+<div style="width:1440px;height:900px;display:flex;flex-direction:column;background:var(--app);overflow:hidden;">
+
+  <!-- title bar -->
+  <div style="height:38px;flex:0 0 38px;display:flex;align-items:center;padding:0 14px;
+       background:linear-gradient(#f7f6f4,#efedea);border-bottom:1px solid var(--border);position:relative;">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="width:12px;height:12px;border-radius:50%;background:#ff5f57;"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#febc2e;"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#28c840;"></span>
+    </div>
+    <div style="position:absolute;left:0;right:0;text-align:center;font-size:12px;color:var(--ink-3);font-weight:600;pointer-events:none;">
+      Swagger Studio — 안전관리 API
+    </div>
+  </div>
+
+  <!-- toolbar -->
+  <div style="height:52px;flex:0 0 52px;display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:2px;">
+      <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);font-weight:600;font-size:12.5px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>
+        파일 열기
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:8px;color:var(--ink-2);font-weight:600;font-size:12.5px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        폴더 열기
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:8px;color:var(--ink-2);font-weight:600;font-size:12.5px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+        저장
+      </div>
+    </div>
+    <div style="width:1px;height:24px;background:var(--border);margin:0 6px;"></div>
+    <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;font-size:12.5px;box-shadow:0 1px 2px rgba(53,87,214,.35);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+      변환
+    </div>
+    <div style="width:1px;height:24px;background:var(--border);margin:0 6px;"></div>
+    <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:8px;color:var(--ink-2);font-weight:600;font-size:12.5px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      내보내기
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8a827b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div style="flex:1 1 auto;"></div>
+    <div style="display:flex;align-items:center;gap:7px;height:28px;padding:0 11px;border-radius:999px;background:#e3f3ea;color:var(--post);font-weight:600;font-size:12px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f9d6b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      유효한 문서
+    </div>
+    <div style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--ink-2);">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+    </div>
+  </div>
+
+  <!-- body -->
+  <div style="flex:1 1 auto;display:grid;grid-template-columns:264px 540px 1fr;min-height:0;">
+
+    <!-- Explorer -->
+    <div style="background:var(--panel-2);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;">
+      <div style="height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--border);">
+        <span style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--ink-3);text-transform:uppercase;">탐색기</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a827b" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <div style="flex:1 1 auto;overflow:auto;padding:8px 6px;min-height:0;">
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:6px;font-weight:600;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#78716c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#e8b64a" stroke="#c99a2e" stroke-width="1"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span style="font-size:12.5px;">안전관리 API</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:28px;margin-left:16px;padding:0 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-weight:600;position:relative;">
+          <span style="position:absolute;left:-3px;top:5px;bottom:5px;width:3px;border-radius:3px;background:var(--accent);"></span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#dbe6ff;color:#2743a8;font-size:8px;font-weight:800;">Y</span>
+          <span style="font-size:12.5px;flex:1;">example.yaml</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:28px;margin-left:16px;padding:0 8px;border-radius:6px;color:var(--ink-2);">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#e7e5e4;color:#78716c;font-size:8px;font-weight:800;">Y</span>
+          <span style="font-size:12.5px;">error_response.yaml</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:28px;margin-left:16px;padding:0 8px;border-radius:6px;color:var(--ink-2);">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#e7e5e4;color:#78716c;font-size:8px;font-weight:800;">Y</span>
+          <span style="font-size:12.5px;">common_schemas.yaml</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;height:28px;margin-top:2px;padding:0 8px;border-radius:6px;font-weight:600;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#78716c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#e8b64a" stroke="#c99a2e" stroke-width="1"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span style="font-size:12.5px;">결제 API</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:28px;margin-left:16px;padding:0 8px;border-radius:6px;color:var(--ink-2);">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#e3f3ea;color:#0f9d6b;font-size:7px;font-weight:800;">{ }</span>
+          <span style="font-size:12.5px;">payment.json</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:28px;margin-left:16px;padding:0 8px;border-radius:6px;color:var(--ink-2);">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:#e3f3ea;color:#0f9d6b;font-size:7px;font-weight:800;">{ }</span>
+          <span style="font-size:12.5px;">refund.json</span>
+        </div>
+      </div>
+      <div style="flex:0 0 auto;margin:10px;padding:16px 12px;border:1.5px dashed var(--border-strong);border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;color:var(--ink-3);background:#fff;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+        <span style="font-size:12px;line-height:1.35;">YAML · JSON 파일을<br>여기로 끌어다 놓으세요</span>
+      </div>
+    </div>
+
+    <!-- Editor -->
+    <div style="background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;">
+      <div style="height:40px;flex:0 0 40px;display:flex;align-items:stretch;background:var(--panel-2);border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--panel);border-right:1px solid var(--border);border-top:2px solid var(--accent);font-weight:600;font-size:12.5px;">
+          example.yaml
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </div>
+      </div>
+      <div style="flex:1 1 auto;overflow:hidden;display:flex;font-family:var(--mono);font-size:12.5px;line-height:21px;min-height:0;background:var(--panel);">
+        <div style="flex:0 0 44px;text-align:right;padding:12px 10px 12px 0;color:#c4bdb3;user-select:none;background:var(--panel-2);border-right:1px solid var(--border);">
+          1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20<br>21<br>22<br>23<br>24<br>25<br>26<br>27<br>28<br>29
+        </div>
+        <div style="flex:1 1 auto;padding:12px 14px;overflow:auto;white-space:pre;color:var(--ink);min-height:0;"><span style="color:var(--key);">openapi</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">3.0.3</span>
+<span style="color:var(--key);">info</span><span style="color:var(--punct);">:</span>
+  <span style="color:var(--key);">title</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">예시 안전관리 API</span>
+  <span style="color:var(--key);">version</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">0.6.0</span>
+  <span style="color:var(--key);">description</span><span style="color:var(--punct);">:</span> <span style="color:var(--com);">|</span>
+    <span style="color:var(--ink-2);">안전관리자 등록·조회 서비스입니다.</span>
+<span style="color:var(--key);">servers</span><span style="color:var(--punct);">:</span>
+  <span style="color:var(--punct);">-</span> <span style="color:var(--key);">url</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">https://api.example.com</span>
+<span style="color:var(--key);">paths</span><span style="color:var(--punct);">:</span>
+  <span style="color:var(--key);">/api/v1/managers</span><span style="color:var(--punct);">:</span>
+    <span style="color:var(--key);">get</span><span style="color:var(--punct);">:</span>
+      <span style="color:var(--key);">summary</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">안전관리자 목록 조회</span>
+      <span style="color:var(--key);">tags</span><span style="color:var(--punct);">:</span> <span style="color:var(--punct);">[</span><span style="color:var(--str);">관리자</span><span style="color:var(--punct);">]</span>
+      <span style="color:var(--key);">parameters</span><span style="color:var(--punct);">:</span>
+        <span style="color:var(--punct);">-</span> <span style="color:var(--key);">name</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">page</span>
+          <span style="color:var(--key);">in</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">query</span>
+          <span style="color:var(--key);">schema</span><span style="color:var(--punct);">:</span>
+            <span style="color:var(--key);">type</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">integer</span>
+            <span style="color:var(--key);">default</span><span style="color:var(--punct);">:</span> <span style="color:var(--num);">1</span>
+      <span style="color:var(--key);">responses</span><span style="color:var(--punct);">:</span>
+        <span style="color:var(--str);">'200'</span><span style="color:var(--punct);">:</span>
+          <span style="color:var(--key);">description</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">성공</span>
+    <span style="color:var(--key);">post</span><span style="color:var(--punct);">:</span>
+      <span style="color:var(--key);">summary</span><span style="color:var(--punct);">:</span> <span style="color:var(--str);">안전관리자 등록</span>
+      <span style="color:var(--key);">tags</span><span style="color:var(--punct);">:</span> <span style="color:var(--punct);">[</span><span style="color:var(--str);">관리자</span><span style="color:var(--punct);">]</span>
+      <span style="color:var(--key);">requestBody</span><span style="color:var(--punct);">:</span>
+        <span style="color:var(--key);">required</span><span style="color:var(--punct);">:</span> <span style="color:var(--num);">true</span></div>
+      </div>
+      <div style="height:28px;flex:0 0 28px;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--panel-2);border-top:1px solid var(--border);font-size:11.5px;color:var(--ink-3);font-family:var(--mono);">
+        <span>줄 1, 칸 1</span><span>YAML</span><span>UTF-8</span>
+        <span style="flex:1;"></span>
+        <span style="display:flex;align-items:center;gap:5px;color:var(--post);"><span style="width:7px;height:7px;border-radius:50%;background:var(--post);"></span>정상</span>
+      </div>
+    </div>
+
+    <!-- Viewer: Swagger UI active -->
+    <div style="background:var(--panel);display:flex;flex-direction:column;min-height:0;">
+      <div style="height:40px;flex:0 0 40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 0;background:var(--panel-2);border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:stretch;height:100%;">
+          <div style="display:flex;align-items:center;gap:7px;padding:0 16px;background:var(--panel);border-top:2px solid var(--accent);color:var(--ink);font-weight:700;font-size:12.5px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3557d6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            Swagger UI
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;padding:0 16px;color:var(--ink-3);font-weight:600;font-size:12.5px;border-left:1px solid var(--border);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 13h6M9 17h6"/></svg>
+            문서 (HTML)
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;color:var(--ink-3);font-size:11.5px;">
+          <span style="padding:3px 9px;border-radius:999px;background:#f2f0ed;color:var(--ink-2);font-weight:600;">실시간 미리보기</span>
+        </div>
+      </div>
+
+      <!-- Swagger UI mock -->
+      <div style="flex:1 1 auto;overflow:auto;min-height:0;background:#fafafa;padding:22px 26px;">
+        <div style="max-width:560px;">
+          <h1 style="margin:0 0 3px;font-size:24px;font-weight:800;color:#3b4151;">예시 안전관리 API
+            <span style="font-size:13px;font-weight:600;color:#fff;background:#7d8492;padding:2px 8px;border-radius:5px;margin-left:6px;font-family:var(--mono);">0.6.0</span>
+            <span style="font-size:12px;font-weight:600;color:#89bf04;background:#e7f0d4;padding:2px 8px;border-radius:5px;margin-left:2px;">OAS 3.0</span>
+          </h1>
+          <p style="margin:0 0 6px;color:#3b4151;font-size:13px;">안전관리자 등록·조회 서비스입니다.</p>
+          <div style="color:#3b4151;font-size:12.5px;margin-bottom:20px;">
+            <a href="#" style="color:#4990e2;">https://api.example.com</a>
+          </div>
+
+          <!-- tag -->
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ebebeb;padding-bottom:8px;margin-bottom:12px;">
+            <span style="font-size:19px;font-weight:700;color:#3b4151;">관리자</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b4151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+          </div>
+
+          <!-- GET op (expanded) -->
+          <div style="border:1px solid #61affe;background:#ebf3fb;border-radius:6px;margin-bottom:10px;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;">
+              <span style="flex:0 0 62px;text-align:center;padding:6px 0;border-radius:4px;background:#61affe;color:#fff;font-size:12px;font-weight:800;font-family:var(--mono);">GET</span>
+              <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:#3b4151;">/api/v1/managers</span>
+              <span style="flex:1;color:#3b4151;font-size:12.5px;">안전관리자 목록 조회</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b4151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+            </div>
+            <div style="background:#fff;border-top:1px solid #d3e4f5;padding:14px 16px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <span style="font-size:13px;font-weight:700;color:#3b4151;">Parameters</span>
+                <span style="font-size:12px;font-weight:700;color:#4990e2;border:1px solid #4990e2;border-radius:4px;padding:4px 10px;">Try it out</span>
+              </div>
+              <div style="display:grid;grid-template-columns:150px 1fr;font-size:12.5px;border-top:1px solid #ebebeb;">
+                <div style="padding:10px 8px;border-bottom:1px solid #ebebeb;"><b style="color:#3b4151;">page</b><br><span style="color:#999;font-family:var(--mono);font-size:11px;">integer</span><br><span style="color:#999;font-size:11px;">(query)</span></div>
+                <div style="padding:10px 8px;border-bottom:1px solid #ebebeb;color:#3b4151;">페이지 번호
+                  <div style="margin-top:6px;border:1px solid #d9d9d9;border-radius:4px;padding:7px 9px;color:#999;font-family:var(--mono);font-size:12px;">1</div>
+                </div>
+                <div style="padding:10px 8px;"><b style="color:#3b4151;">size</b><br><span style="color:#999;font-family:var(--mono);font-size:11px;">integer</span><br><span style="color:#999;font-size:11px;">(query)</span></div>
+                <div style="padding:10px 8px;color:#3b4151;">페이지 크기
+                  <div style="margin-top:6px;border:1px solid #d9d9d9;border-radius:4px;padding:7px 9px;color:#999;font-family:var(--mono);font-size:12px;">20</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- POST op (collapsed) -->
+          <div style="border:1px solid #49cc90;background:#e8f6f0;border-radius:6px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;">
+              <span style="flex:0 0 62px;text-align:center;padding:6px 0;border-radius:4px;background:#49cc90;color:#fff;font-size:12px;font-weight:800;font-family:var(--mono);">POST</span>
+              <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:#3b4151;">/api/v1/managers</span>
+              <span style="flex:1;color:#3b4151;font-size:12.5px;">안전관리자 등록</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b4151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+
+          <!-- DELETE op (collapsed) -->
+          <div style="border:1px solid #f93e3e;background:#fce8e8;border-radius:6px;">
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;">
+              <span style="flex:0 0 62px;text-align:center;padding:6px 0;border-radius:4px;background:#f93e3e;color:#fff;font-size:11px;font-weight:800;font-family:var(--mono);">DELETE</span>
+              <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:#3b4151;">/api/v1/managers/{id}</span>
+              <span style="flex:1;color:#3b4151;font-size:12.5px;">안전관리자 삭제</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b4151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

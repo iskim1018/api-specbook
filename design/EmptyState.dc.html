@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --app:#eceae7; --panel:#ffffff; --panel-2:#faf9f8;
+      --border:#e5e2de; --border-strong:#d6d2cc;
+      --ink:#1c1917; --ink-2:#57534e; --ink-3:#8a827b;
+      --accent:#3557d6; --accent-soft:#eef2fe;
+      --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+      --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:var(--ui);color:var(--ink);background:var(--app);
+      -webkit-font-smoothing:antialiased;font-size:13px;line-height:1.45;}
+    a{color:var(--accent);} a:hover{color:#2743a8;}
+  </style>
+</helmet>
+
+<div style="width:1440px;height:900px;display:flex;flex-direction:column;background:var(--app);overflow:hidden;">
+
+  <!-- title bar -->
+  <div style="height:38px;flex:0 0 38px;display:flex;align-items:center;padding:0 14px;
+       background:linear-gradient(#f7f6f4,#efedea);border-bottom:1px solid var(--border);position:relative;">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="width:12px;height:12px;border-radius:50%;background:#ff5f57;"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#febc2e;"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#28c840;"></span>
+    </div>
+    <div style="position:absolute;left:0;right:0;text-align:center;font-size:12px;color:var(--ink-3);font-weight:600;pointer-events:none;">
+      Swagger Studio
+    </div>
+  </div>
+
+  <!-- toolbar (minimal, disabled feel) -->
+  <div style="height:52px;flex:0 0 52px;display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);font-weight:600;font-size:12.5px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>
+      파일 열기
+    </div>
+    <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:8px;color:var(--ink-2);font-weight:600;font-size:12.5px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      폴더 열기
+    </div>
+    <div style="width:1px;height:24px;background:var(--border);margin:0 6px;"></div>
+    <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 14px;border-radius:8px;color:#c4bdb3;font-weight:600;font-size:12.5px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cfcac3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+      변환
+    </div>
+    <div style="flex:1 1 auto;"></div>
+  </div>
+
+  <!-- body -->
+  <div style="flex:1 1 auto;display:grid;grid-template-columns:264px 1fr;min-height:0;">
+
+    <!-- Explorer empty -->
+    <div style="background:var(--panel-2);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;">
+      <div style="height:40px;flex:0 0 40px;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid var(--border);">
+        <span style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--ink-3);text-transform:uppercase;">탐색기</span>
+      </div>
+      <div style="flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;color:var(--ink-3);min-height:0;">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#cfcac3" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span style="font-size:12.5px;line-height:1.5;">아직 열린 폴더가 없습니다.<br>폴더를 열면 파일 목록이<br>여기에 표시됩니다.</span>
+        <div style="display:flex;align-items:center;gap:7px;height:32px;padding:0 14px;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;font-size:12px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          폴더 열기
+        </div>
+      </div>
+    </div>
+
+    <!-- Big drop zone -->
+    <div style="display:flex;align-items:center;justify-content:center;padding:40px;min-height:0;background:var(--app);">
+      <div style="width:100%;max-width:640px;padding:64px 48px;border:2.5px dashed var(--accent);border-radius:20px;
+           background:linear-gradient(#f6f8ff,#eef2fe);display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center;">
+        <div style="width:96px;height:96px;border-radius:24px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(53,87,214,.14);">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#3557d6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        </div>
+        <div>
+          <div style="font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.3px;margin-bottom:8px;">Swagger 파일을 여기에 놓으세요</div>
+          <div style="font-size:14px;color:var(--ink-2);line-height:1.55;">OpenAPI 3.x <b>YAML</b> 또는 <b>JSON</b> 파일을 끌어다 놓으면<br>바로 편집기와 미리보기가 열립니다.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:2px;">
+          <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 20px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;font-size:13.5px;box-shadow:0 2px 6px rgba(53,87,214,.3);">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg>
+            파일 선택
+          </div>
+          <span style="color:var(--ink-3);font-size:13px;">또는</span>
+          <div style="display:flex;align-items:center;gap:8px;height:42px;padding:0 20px;border-radius:10px;background:#fff;border:1px solid var(--border-strong);color:var(--ink);font-weight:600;font-size:13.5px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#57534e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            폴더 열기
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;color:var(--ink-3);font-size:12px;">
+          <span style="padding:3px 10px;border-radius:999px;background:#fff;border:1px solid var(--border);font-family:var(--mono);">.yaml</span>
+          <span style="padding:3px 10px;border-radius:999px;background:#fff;border:1px solid var(--border);font-family:var(--mono);">.yml</span>
+          <span style="padding:3px 10px;border-radius:999px;background:#fff;border:1px solid var(--border);font-family:var(--mono);">.json</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-app/
+.DS_Store
+.claude/
+.omc/
+.playwright-mcp/
+op*.png
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# 디자인 캔버스 생성 페이로드 (소스 .dc.html 만 추적)
+design/swagger-studio-ui.html
