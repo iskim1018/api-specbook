@@ -8,6 +8,7 @@
     "oas2html": "./core/cli.mjs"
   },
   "scripts": {
+    "test": "node --test",
     "build:samples": "node core/cli.mjs sample/*.y*ml -o dist",
     "dev": "vite",
     "build": "vite build",

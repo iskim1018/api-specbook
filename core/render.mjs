@@ -1,17 +1,92 @@
 // 모델 → 단일 self-contained HTML
 import { marked } from 'marked';
 
-marked.setOptions({ gfm: true, breaks: true });
-
 const esc = (s) =>
   String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+// data: URL 중 이미지만 허용한다. (SVG 는 스크립트를 품을 수 있어 제외)
+const SAFE_DATA_URL = /^data:image\/(?!svg)[a-z0-9.+-]+[;,]/;
+const BAD_SCHEME = /^(javascript|vbscript|data|file|blob|about):/;
+
+// 브라우저는 href 안의 HTML 엔티티를 풀어서 해석하므로, 판정 전에 같은 방식으로 풀어 준다.
+// (javascript&#58;alert(1) 같은 우회 차단)
+function decodeEntities(s) {
+  const chr = (n) => (Number.isFinite(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : '');
+  return s
+    .replace(/&#x([0-9a-f]+);?/gi, (_, h) => chr(parseInt(h, 16)))
+    .replace(/&#(\d+);?/g, (_, d) => chr(Number(d)))
+    .replace(/&colon;?/gi, ':')
+    .replace(/&(tab|newline|nbsp);?/gi, ' ');
+}
+
+// 링크/이미지 URL 무력화: 명세의 description 은 신뢰할 수 없는 입력이다.
+// 프로토콜 상대 URL(//host/...)도 '#' 로 막는다. 내보낸 문서는 오프라인 self-contained 가
+// 목적이므로 스킴 없이 외부 호스트를 불러오는 형태를 허용하지 않는다.
+function safeUrl(href) {
+  const raw = String(href ?? '');
+  // 스킴 판정 전에 엔티티를 풀고 제어문자를 걷어낸다. (판정용 사본이며 출력은 원본)
+  const probe = decodeEntities(raw).replace(/[\u0000-\u0020]/g, '').toLowerCase();
+  if (probe.startsWith('//')) return '#';
+  if (!BAD_SCHEME.test(probe)) return raw;
+  return SAFE_DATA_URL.test(probe) ? raw : '#';
+}
+
+// 원본 HTML 토큰은 렌더링하지 않고 그대로 이스케이프한다. (미리보기/내보낸 HTML 의 XSS 차단)
+marked.use({
+  gfm: true,
+  breaks: true,
+  walkTokens(token) {
+    if (token.type === 'link' || token.type === 'image') token.href = safeUrl(token.href);
+  },
+  renderer: {
+    html(token) {
+      return esc(typeof token === 'string' ? token : token.text);
+    },
+    // marked 15 의 기본 image 렌더러는 alt(text) 를 이스케이프하지 않아 속성 탈출이 가능하다.
+    // (link 의 title/text 는 marked 가 이미 이스케이프하므로 그대로 둔다)
+    image({ href, title, text }) {
+      return `<img src="${esc(safeUrl(href))}" alt="${esc(text)}"${title ? ` title="${esc(title)}"` : ''}>`;
+    },
+  },
+});
 
 const md = (s) => (s ? `<div class="md">${marked.parse(String(s))}</div>` : '');
 const mdInline = (s) => (s ? `<div class="md md-cell">${marked.parse(String(s))}</div>` : '');
+
+// 태그 이름 → 앵커 id 조각. 한글/영문/숫자는 남기고 공백·특수문자는 '-' 로 바꾼다.
+export function slugify(name) {
+  const s = String(name ?? '')
+    .trim()
+    .replace(/[^0-9A-Za-z_\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uAC00-\uD7A3-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return s || 'tag';
+}
+
+// 태그 목록 전체에 대해 충돌 없는 slug 배열을 만든다.
+// base 별 카운터만 쓰면 ['A','A!','A-2'] 처럼 붙인 번호가 다른 태그와 겹칠 수 있으므로,
+// 최종 slug 를 taken 에 모아 실제로 비어 있는 번호를 찾을 때까지 올린다.
+function tagSlugs(groups) {
+  const used = new Map();
+  const taken = new Set();
+  return groups.map((g) => {
+    const base = slugify(g.tag);
+    let n = used.get(base) ?? 1;
+    let slug = n === 1 ? base : `${base}-${n}`;
+    while (taken.has(slug)) {
+      n += 1;
+      slug = `${base}-${n}`;
+    }
+    used.set(base, n + 1);
+    taken.add(slug);
+    return slug;
+  });
+}
 const json = (v) => esc(JSON.stringify(v, null, 2));
 const jsonInline = (v) => (v === undefined ? '' : typeof v === 'object' ? esc(JSON.stringify(v)) : esc(String(v)));
 
@@ -30,6 +105,8 @@ export function renderHtml(model, opts = {}) {
   const numOverview = secNo++;
   const numSecurity = model.security.length ? secNo++ : null;
   const groupNo = model.groups.map(() => secNo++);
+  // 태그 이름을 그대로 id 에 쓰면 공백·특수문자에서 앵커가 깨진다.
+  const groupSlug = tagSlugs(model.groups);
 
   return `<!doctype html>
 <html lang="ko" data-theme="${theme}">
@@ -37,7 +114,6 @@ export function renderHtml(model, opts = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} ${esc(version)} API 명세서</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&display=swap">
 <style>${CSS}${THEME_CSS[theme]}</style>
 </head>
 <body>
@@ -55,7 +131,7 @@ export function renderHtml(model, opts = {}) {
       .map(
         (g, gi) => `
     <div class="nav-group" data-tag="${esc(g.tag)}">
-      <a class="nav-group-title" href="#tag-${esc(g.tag)}"><span class="nav-num">${groupNo[gi]}</span><span class="nav-text-flex">${esc(g.tag)} <span class="nav-count">${g.ops.length}</span><button class="nav-toggle-group" aria-label="그룹 접기/펼치기">▾</button></span></a>
+      <a class="nav-group-title" href="#tag-${esc(groupSlug[gi])}"><span class="nav-num">${groupNo[gi]}</span><span class="nav-text-flex">${esc(g.tag)} <span class="nav-count">${g.ops.length}</span><button class="nav-toggle-group" aria-label="그룹 접기/펼치기">▾</button></span></a>
       ${g.ops
         .map(
           (op, oi) => `
@@ -96,7 +172,7 @@ export function renderHtml(model, opts = {}) {
   ${model.groups
     .map(
       (g, gi) => `
-  <section class="tag-section" id="tag-${esc(g.tag)}">
+  <section class="tag-section" id="tag-${esc(groupSlug[gi])}">
     <h2 class="tag-title"><span class="sec-num">${groupNo[gi]}</span>${esc(g.tag)}</h2>
     ${md(g.description)}
     ${renderTagIndex(g)}
@@ -203,7 +279,13 @@ function renderOperation(op, num) {
         : ''
     }
 
-    ${op.parameters.map((g) => `<h4>${PARAM_LABEL[g.location] ?? g.location}</h4>${renderSchemaTable(g.rows, `${op.id}-p-${g.location}`)}`).join('')}
+    ${op.parameters
+      .map((g) => {
+        // parameter.in 은 명세에서 온 임의 문자열이다. 라벨은 이스케이프하고 id 는 slug 로만 쓴다.
+        const label = esc(Object.hasOwn(PARAM_LABEL, g.location) ? PARAM_LABEL[g.location] : g.location);
+        return `<h4>${label}</h4>${renderSchemaTable(g.rows, `${op.id}-p-${slugify(g.location)}`)}`;
+      })
+      .join('')}
 
     ${renderRequestBody(op)}
 
@@ -235,11 +317,13 @@ function renderRequestBody(op) {
 function renderResponse(op, r) {
   const cls = r.status.startsWith('2') ? 'ok' : r.status.startsWith('4') || r.status.startsWith('5') ? 'err' : 'other';
   const isError = cls === 'err';
+  // 상태 코드 키도 명세에서 온 임의 문자열이므로 id 에는 slug 만 넣는다.
+  const resId = `${op.id}-res-${slugify(r.status)}`;
   const body = `
       ${r.headers.length ? `<h5>응답 헤더</h5>${renderSimpleTable(r.headers)}` : ''}
-      ${r.rows.length ? `${r.schemaName ? `<div class="schema-name">스키마: <code>${esc(r.schemaName)}</code></div>` : ''}${renderSchemaTable(r.rows, `${op.id}-res-${r.status}`)}` : r.contentType ? `<p class="muted">본문: <code>${esc(r.contentType)}</code> ${esc(r.schemaType && r.schemaType !== 'any' ? `(${r.schemaType})` : '')}</p>` : '<p class="muted">본문 없음</p>'}
+      ${r.rows.length ? `${r.schemaName ? `<div class="schema-name">스키마: <code>${esc(r.schemaName)}</code></div>` : ''}${renderSchemaTable(r.rows, resId)}` : r.contentType ? `<p class="muted">본문: <code>${esc(r.contentType)}</code> ${esc(r.schemaType && r.schemaType !== 'any' ? `(${r.schemaType})` : '')}</p>` : '<p class="muted">본문 없음</p>'}
       ${renderNamedExamples(r)}
-      ${r.namedExamples.length <= 1 ? renderExamples('응답 예시', r, `${op.id}-res-${r.status}`) : ''}`;
+      ${r.namedExamples.length <= 1 ? renderExamples('응답 예시', r, resId) : ''}`;
 
   // 오류 응답은 기본 접힘. 성공 응답은 펼침.
   return `
@@ -276,7 +360,8 @@ function renderNamedExamples(r) {
 
 function renderExamples(label, media, id) {
   if (media.example === undefined) return '';
-  return `<details class="example"><summary>${esc(label)}</summary><pre class="json" id="${id}-example">${json(media.example)}</pre></details>`;
+  // id 는 호출부에서 slug 로 만들어 넘기지만, 속성 자리이므로 여기서도 한 번 더 막는다.
+  return `<details class="example"><summary>${esc(label)}</summary><pre class="json" id="${esc(id)}-example">${json(media.example)}</pre></details>`;
 }
 
 function renderSimpleTable(rows) {
@@ -290,7 +375,7 @@ export function renderSchemaTable(rows, tableId) {
   const hasExample = rows.some((r) => r.example !== undefined);
   return `
     <div class="table-wrap">
-    <table class="schema-table" id="${tableId}">
+    <table class="schema-table" id="${esc(tableId)}">
       <colgroup><col class="c-name"><col class="c-type"><col class="c-req"><col class="c-cons"><col class="c-desc">${hasExample ? '<col class="c-ex">' : ''}</colgroup>
       <thead><tr><th>항목</th><th>타입</th><th>필수</th><th>제약</th><th>설명</th>${hasExample ? '<th>예시</th>' : ''}</tr></thead>
       <tbody>

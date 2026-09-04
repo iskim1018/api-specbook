@@ -41,6 +41,8 @@
 [data-theme="dark"] .status-pill.ok { background: #16321f; }
 [data-theme="dark"] .status-pill.err { background: #3a1f1f; }
 [data-theme="dark"] .err-chip { background: #33201f; border-color: #5a2e2c; color: #f0a9a2; }
+[data-theme="dark"] .status-pill.warn { background: #3a2c14; }
+[data-theme="dark"] .err-chip.warn { background: #33281a; border-color: #5a4a2c; color: #f0cf8a; }
 [data-theme="dark"] .badge-ext.yaml { background: #1e2c47; color: #8fb0ff; }
 [data-theme="dark"] .badge-ext.json { background: #15311f; color: #6fd39a; }
 [data-theme="dark"] .drop-card { background: linear-gradient(#1a2233, #161c29); }
@@ -99,6 +101,8 @@ body {
 .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
 .status-pill.ok { background: #e3f3ea; color: var(--ok); }
 .status-pill.err { background: #fdecec; color: var(--del); }
+.status-pill.warn { background: #fdf3e3; color: var(--put); }
+.status-pill.idle { background: var(--panel-2); color: var(--ink-3); }
 .icon-btn {
   width: 34px; height: 34px; border-radius: 8px; border: 0; background: transparent;
   color: var(--ink-2); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
@@ -200,6 +204,7 @@ body {
 }
 .err-chip code { font-family: var(--mono); }
 .err-chip.hidden { display: none; }
+.err-chip.warn { background: #fdf3e3; border-color: #f3d9a8; color: #8a5a00; align-items: flex-start; white-space: pre-line; }
 
 .statusbar {
   height: 28px; flex: 0 0 28px; display: flex; align-items: center; gap: 14px;
@@ -211,6 +216,8 @@ body {
 .statusbar .valid .dot { width: 7px; height: 7px; border-radius: 50%; }
 .statusbar .valid.ok { color: var(--ok); } .statusbar .valid.ok .dot { background: var(--ok); }
 .statusbar .valid.err { color: var(--del); } .statusbar .valid.err .dot { background: var(--del); }
+.statusbar .valid.warn { color: var(--put); } .statusbar .valid.warn .dot { background: var(--put); }
+.statusbar .valid.idle { color: var(--ink-3); } .statusbar .valid.idle .dot { background: var(--ink-3); }
 
 /* ===== Viewer ===== */
 .viewer-tabs { display: flex; align-items: stretch; height: 100%; }

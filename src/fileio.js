@@ -19,6 +19,11 @@ function ensureExt(path, exts) {
 export function isSpecFile(path) {
   return SPEC_EXTS.includes(extOf(path));
 }
+// 디스크에 바로 덮어쓸 수 있는 실제 경로인지 (절대 경로만 인정).
+// 내장 예시('example.yaml')·브라우저 폴백('(선택한 파일)') 같은 가짜 경로를 걸러낸다.
+export function isRealPath(path) {
+  return typeof path === 'string' && /^(\/|[A-Za-z]:[\\/])/.test(path);
+}
 
 // ---- 파일 열기 ----
 export async function openFileDialog() {
@@ -78,7 +83,8 @@ export async function openFolderDialog() {
   }
   const { open } = await import('@tauri-apps/plugin-dialog');
   const { readDir } = await import('@tauri-apps/plugin-fs');
-  const dir = await open({ directory: true, multiple: false });
+  // recursive: 하위 폴더까지 훑으므로 선택한 폴더 전체를 fs 스코프에 허용시킨다.
+  const dir = await open({ directory: true, multiple: false, recursive: true });
   if (!dir) return null;
   const children = await walkTree(dir, readDir, 0);
   return { dir, root: { name: baseName(dir) || dir, path: dir, isDir: true, children } };

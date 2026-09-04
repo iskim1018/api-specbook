@@ -7,7 +7,8 @@
 const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
 
 export function buildModel(doc) {
-  const resolver = makeResolver(doc);
+  const warnings = [];
+  const resolver = makeResolver(doc, warnings);
   const ops = collectOperations(doc, resolver);
   const groups = groupByTag(doc, ops);
   return {
@@ -16,31 +17,55 @@ export function buildModel(doc) {
     security: describeSecurity(doc, resolver),
     groups,
     ops,
+    warnings,
   };
 }
 
 // ---------------------------------------------------------------- $ref
 
-function makeResolver(doc) {
+function makeResolver(doc, warnings = []) {
+  // 캐시에는 "순수한 해소 결과"만 담는다. 호출부의 형제 키(description 등)를 섞어서 캐시하면
+  // 같은 $ref 를 다른 설명으로 두 번 쓸 때 첫 번째 설명이 전염된다.
   const cache = new Map();
+  const missing = new Set();
   return function resolve(node, seen = new Set()) {
     if (!node || typeof node !== 'object') return node;
     if (!node.$ref) return node;
     const ref = node.$ref;
-    if (cache.has(ref)) return cache.get(ref);
     if (!ref.startsWith('#/')) throw new Error(`외부 $ref 는 지원하지 않습니다: ${ref}`);
-    if (seen.has(ref)) return { type: 'object', description: `(순환 참조: ${refName(ref)})`, 'x-ref-name': refName(ref) };
-    const target = ref.slice(2).split('/').reduce((acc, key) => {
-      if (acc == null) return undefined;
-      return acc[decodeURIComponent(key.replace(/~1/g, '/').replace(/~0/g, '~'))];
-    }, doc);
-    if (target === undefined) throw new Error(`$ref 대상을 찾을 수 없습니다: ${ref}`);
-    const merged = { ...resolve(target, new Set([...seen, ref])), 'x-ref-name': refName(ref) };
-    // $ref 옆에 붙은 description 등 형제 키는 3.0 에서 무시되지만, 있으면 살려 준다.
-    for (const [k, v] of Object.entries(node)) if (k !== '$ref' && merged[k] === undefined) merged[k] = v;
-    cache.set(ref, merged);
-    return merged;
+    if (seen.has(ref)) {
+      return withSiblings({ type: 'object', description: `(순환 참조: ${refName(ref)})`, 'x-ref-name': refName(ref) }, node);
+    }
+    let resolved = cache.get(ref);
+    if (resolved === undefined) {
+      const target = ref.slice(2).split('/').reduce((acc, key) => {
+        if (acc == null) return undefined;
+        return acc[decodeURIComponent(key.replace(/~1/g, '/').replace(/~0/g, '~'))];
+      }, doc);
+      if (target === undefined) {
+        // 정의를 못 찾아도 문서 전체를 죽이지 않고 자리표시자 + 경고로 넘어간다.
+        if (!missing.has(ref)) {
+          missing.add(ref);
+          warnings.push(`$ref 대상을 찾을 수 없습니다: ${ref}`);
+        }
+        resolved = { type: 'object', description: `(정의를 찾을 수 없음: ${ref})` };
+      } else {
+        resolved = { ...resolve(target, new Set([...seen, ref])), 'x-ref-name': refName(ref) };
+      }
+      cache.set(ref, resolved);
+    }
+    return withSiblings(resolved, node);
   };
+}
+
+// $ref 옆에 붙은 description 등 형제 키는 3.0 에서 무시되지만, 있으면 살려 준다.
+// 캐시된 원본을 건드리지 않도록 사본에 얹는다.
+function withSiblings(resolved, node) {
+  const siblings = Object.keys(node).filter((k) => k !== '$ref');
+  if (!siblings.length) return resolved;
+  const merged = { ...resolved };
+  for (const k of siblings) if (merged[k] === undefined) merged[k] = node[k];
+  return merged;
 }
 
 function refName(ref) {
@@ -144,11 +169,29 @@ function describeResponses(responses, resolve) {
   return out;
 }
 
-// 첫 번째 media type 을 대표로 사용하고 나머지는 이름만 기록한다.
+// 대표 media type 선택 우선순위. application/xml 이 먼저 적혀 있어도 JSON 본문 표를 보여 준다.
+const MEDIA_PRIORITY = [
+  (ct) => ct === 'application/json',
+  (ct) => ct.endsWith('+json'),
+  (ct) => ct === 'application/x-www-form-urlencoded',
+  (ct) => ct === 'multipart/form-data',
+];
+
+function pickPrimaryIndex(entries) {
+  const norm = entries.map(([ct]) => String(ct).split(';')[0].trim().toLowerCase());
+  for (const match of MEDIA_PRIORITY) {
+    const i = norm.findIndex(match);
+    if (i >= 0) return i;
+  }
+  return 0;
+}
+
+// 대표 media type 하나만 표로 펼치고 나머지는 이름만 기록한다.
 function pickMedia(content, resolve) {
   const entries = Object.entries(content);
   if (!entries.length) return { contentType: null, rows: [], example: undefined, namedExamples: [], otherContentTypes: [] };
-  const [contentType, media] = entries[0];
+  const primary = pickPrimaryIndex(entries);
+  const [contentType, media] = entries[primary];
   const schema = resolve(media.schema ?? {});
   const rows = schema && Object.keys(schema).length ? flattenSchema(schema, resolve) : [];
   const namedExamples = Object.entries(media.examples ?? {}).map(([name, ex]) => {
@@ -166,7 +209,7 @@ function pickMedia(content, resolve) {
     rows,
     example,
     namedExamples,
-    otherContentTypes: entries.slice(1).map(([ct]) => ct),
+    otherContentTypes: entries.filter((_, i) => i !== primary).map(([ct]) => ct),
   };
 }
 
@@ -208,8 +251,12 @@ export function flattenSchema(schema, resolve, opts = {}) {
   }
 }
 
+// normalize 재귀 안전장치. 자기 참조 스키마에서 스택이 터지지 않도록 한다.
+const MAX_NORMALIZE_DEPTH = 24;
+
 // 스키마 노드를 {kind, typeLabel, children, ...} 로 정규화한다.
-function normalize(schema, resolve, name = '', required = false) {
+// depth/seenRefs 로 자기 참조(Node → children → Node)를 잎 행으로 끊는다.
+function normalize(schema, resolve, name = '', required = false, depth = 0, seenRefs = new Set()) {
   schema = resolve(schema) ?? {};
   if (Array.isArray(schema.allOf)) schema = mergeAllOf(schema, resolve);
 
@@ -225,11 +272,19 @@ function normalize(schema, resolve, name = '', required = false) {
     children: [],
   };
 
+  // 이미 거쳐 온 명명 스키마를 또 만나면 순환이므로 자식 없이 끝낸다.
+  if (base.refName && seenRefs.has(base.refName)) {
+    const mark = `(순환 참조: ${base.refName})`;
+    return { ...base, kind: 'primitive', typeLabel: typeLabel(schema, resolve), description: base.description ? `${base.description} ${mark}` : mark };
+  }
+  if (depth >= MAX_NORMALIZE_DEPTH) return { ...base, kind: 'primitive', typeLabel: typeLabel(schema, resolve) };
+  const nextSeen = base.refName ? new Set([...seenRefs, base.refName]) : seenRefs;
+
   const variants = schema.oneOf ?? schema.anyOf;
   if (Array.isArray(variants)) {
     const keyword = schema.oneOf ? 'oneOf' : 'anyOf';
     const children = variants.map((v, i) => {
-      const n = normalize(v, resolve, `옵션 ${i + 1}`, false);
+      const n = normalize(v, resolve, `옵션 ${i + 1}`, false, depth + 1, nextSeen);
       n.variant = keyword;
       if (n.refName && !n.description) n.description = n.refName;
       return n;
@@ -240,14 +295,14 @@ function normalize(schema, resolve, name = '', required = false) {
   const type = effectiveType(schema);
   if (type === 'object') {
     const req = new Set(schema.required ?? []);
-    const children = Object.entries(schema.properties ?? {}).map(([k, v]) => normalize(v, resolve, k, req.has(k)));
+    const children = Object.entries(schema.properties ?? {}).map(([k, v]) => normalize(v, resolve, k, req.has(k), depth + 1, nextSeen));
     if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
-      children.push(normalize(schema.additionalProperties, resolve, '{key}', false));
+      children.push(normalize(schema.additionalProperties, resolve, '{key}', false, depth + 1, nextSeen));
     }
     return { ...base, kind: 'object', typeLabel: typeLabel(schema, resolve), children };
   }
   if (type === 'array') {
-    const items = normalize(schema.items ?? {}, resolve, '[]', false);
+    const items = normalize(schema.items ?? {}, resolve, '[]', false, depth + 1, nextSeen);
     // 배열의 항목이 객체/변형이면 그 자식들을 배열 바로 아래에 붙인다. (items 라는 가짜 단계 생략)
     const children = items.kind === 'object' || items.kind === 'variant' ? items.children : [];
     const label = typeLabel(schema, resolve);
@@ -260,12 +315,20 @@ function normalize(schema, resolve, name = '', required = false) {
   return { ...base, kind: 'primitive', typeLabel: typeLabel(schema, resolve) };
 }
 
-function mergeAllOf(schema, resolve) {
+// seen: 지금 병합 중인 명명 스키마 이름. B: allOf[$ref B] 처럼 자기 자신을 조각으로 품으면
+// 무한 재귀가 되므로 이미 병합 중인 조각은 건너뛴다.
+// 조각 객체는 절대 수정하지 않는다. resolve 는 인라인 스키마의 경우 원본 객체를 그대로 돌려주므로
+// Object.assign 으로 덮으면 사용자의 입력 문서와 resolver 캐시가 오염된다.
+function mergeAllOf(schema, resolve, seen = new Set()) {
+  const self = schema['x-ref-name'];
+  const nextSeen = self ? new Set([...seen, self]) : seen;
   const merged = { type: 'object', properties: {}, required: [] };
-  const parts = [...schema.allOf.map((s) => resolve(s)), { ...schema, allOf: undefined }];
-  for (const part of parts) {
+  const refParts = schema.allOf
+    .map((s) => resolve(s))
+    .filter((p) => p && !(p['x-ref-name'] && nextSeen.has(p['x-ref-name'])));
+  for (let part of [...refParts, { ...schema, allOf: undefined }]) {
     if (!part) continue;
-    if (Array.isArray(part.allOf)) Object.assign(part, mergeAllOf(part, resolve));
+    if (Array.isArray(part.allOf)) part = mergeAllOf(part, resolve, nextSeen);
     for (const [k, v] of Object.entries(part)) {
       if (k === 'properties') Object.assign(merged.properties, v);
       else if (k === 'required') merged.required.push(...v);
@@ -283,7 +346,9 @@ function effectiveType(schema) {
   return 'any';
 }
 
-export function typeLabel(schema, resolve) {
+// seen: 이미 라벨을 만드는 중인 명명 스키마 이름. A = array<A> 나 C↔D 상호 참조에서
+// 무한 재귀에 빠지지 않도록, 다시 만난 이름은 풀지 않고 이름만 적는다.
+export function typeLabel(schema, resolve, seen = new Set()) {
   schema = resolve(schema) ?? {};
   if (Array.isArray(schema.allOf)) return 'object';
   if (schema.oneOf) return 'oneOf';
@@ -291,7 +356,11 @@ export function typeLabel(schema, resolve) {
   const type = effectiveType(schema);
   if (type === 'array') {
     const items = resolve(schema.items ?? {}) ?? {};
-    return `array<${typeLabel(items, resolve)}>`;
+    const self = schema['x-ref-name'];
+    const nextSeen = self ? new Set([...seen, self]) : seen;
+    const itemName = items['x-ref-name'];
+    if (itemName && nextSeen.has(itemName)) return `array<${itemName}>`;
+    return `array<${typeLabel(items, resolve, nextSeen)}>`;
   }
   if (type === 'object') return schema['x-ref-name'] ? `object (${schema['x-ref-name']})` : 'object';
   if (type === 'any') return 'any';

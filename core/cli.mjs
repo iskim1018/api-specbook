@@ -25,22 +25,32 @@ const outIsDir = inputs.length > 1 || (out && (out.endsWith('/') || (fs.existsSy
 if (outIsDir) fs.mkdirSync(out ?? '.', { recursive: true });
 
 for (const input of inputs) {
-  const raw = fs.readFileSync(input, 'utf8');
-  const doc = input.endsWith('.json') ? JSON.parse(raw) : yaml.load(raw);
-  if (!doc || typeof doc !== 'object' || !(doc.openapi || doc.swagger)) {
-    console.error(`OpenAPI 문서가 아닙니다: ${input}`);
+  // 한 문서가 실패해도 나머지 배치는 계속 처리한다.
+  try {
+    const raw = fs.readFileSync(input, 'utf8');
+    const doc = input.endsWith('.json') ? JSON.parse(raw) : yaml.load(raw);
+    if (!doc || typeof doc !== 'object' || !(doc.openapi || doc.swagger)) {
+      console.error(`OpenAPI 문서가 아닙니다: ${input}`);
+      process.exitCode = 1;
+      continue;
+    }
+    if (doc.swagger) {
+      console.error(`Swagger 2.0 은 지원하지 않습니다. OpenAPI 3.x 로 변환 후 사용하세요: ${input}`);
+      process.exitCode = 1;
+      continue;
+    }
+    const model = buildModel(doc);
+    // 경고는 치명적이지 않으므로 stderr 로만 알리고 파일은 그대로 생성한다.
+    // 다만 CI 가 조용히 넘어가지 않도록 종료 코드는 1 로 둔다.
+    for (const w of model.warnings ?? []) console.error(`경고 (${input}): ${w}`);
+    if (model.warnings?.length) process.exitCode = 1;
+    const html = renderHtml(model);
+    const base = path.basename(input).replace(/\.(ya?ml|json)$/i, '') + '.html';
+    const target = outIsDir ? path.join(out ?? '.', base) : out ?? path.join(path.dirname(input), base);
+    fs.writeFileSync(target, html);
+    console.log(`${input} → ${target} (${model.ops.length} APIs, ${(html.length / 1024).toFixed(0)} KB)`);
+  } catch (err) {
+    console.error(`오류 (${input}): ${err?.message ?? err}`);
     process.exitCode = 1;
-    continue;
   }
-  if (doc.swagger) {
-    console.error(`Swagger 2.0 은 지원하지 않습니다. OpenAPI 3.x 로 변환 후 사용하세요: ${input}`);
-    process.exitCode = 1;
-    continue;
-  }
-  const model = buildModel(doc);
-  const html = renderHtml(model);
-  const base = path.basename(input).replace(/\.(ya?ml|json)$/i, '') + '.html';
-  const target = outIsDir ? path.join(out ?? '.', base) : out ?? path.join(path.dirname(input), base);
-  fs.writeFileSync(target, html);
-  console.log(`${input} → ${target} (${model.ops.length} APIs, ${(html.length / 1024).toFixed(0)} KB)`);
 }

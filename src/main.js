@@ -8,7 +8,7 @@ import { createEditor } from './editor.js';
 import { createViewer } from './viewer.js';
 import { renderTree } from './tree.js';
 import {
-  isTauri, extOf, baseName, isSpecFile,
+  isTauri, extOf, baseName, isSpecFile, isRealPath,
   openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportAs, firstSpecNode,
 } from './fileio.js';
 import { SAMPLE_NAME, SAMPLE_YAML } from './sample.js';
@@ -140,11 +140,19 @@ function schedulePreview() {
 
 function updatePreview() {
   const f = activePath ? openFiles.get(activePath) : null;
-  if (!f) return;
-  const { doc, error } = parseSpec(f.content, f.ext);
   const errChip = document.getElementById('err-chip');
   const sbValid = document.getElementById('sb-valid');
   const docStatus = document.getElementById('doc-status');
+  if (!f) {
+    // 마지막 탭을 닫은 뒤 이전 파일의 오류 표시가 남지 않도록 중립 상태로 되돌린다
+    errChip.className = 'err-chip hidden';
+    sbValid.className = 'valid idle';
+    sbValid.innerHTML = '<span class="dot"></span>파일 없음';
+    docStatus.className = 'status-pill idle';
+    docStatus.innerHTML = `${ic('file', 14)}<span>파일 없음</span>`;
+    return;
+  }
+  const { doc, error } = parseSpec(f.content, f.ext);
 
   if (error) {
     errChip.className = 'err-chip';
@@ -166,6 +174,16 @@ function updatePreview() {
     const model = buildModel(doc);
     const html = renderHtml(model, { theme: htmlTheme });
     viewer.setContent({ html, spec: doc });
+    // 문서는 만들어졌지만 없는 $ref 등 경고가 있으면 오류와 구분해 알려 준다
+    const warnings = model.warnings || [];
+    if (warnings.length) {
+      errChip.className = 'err-chip warn';
+      errChip.innerHTML = `${ic('alert', 15)}<span><b>경고 ${warnings.length}건</b>\n${warnings.map((w) => escapeHtml(w)).join('\n')}</span>`;
+      sbValid.className = 'valid warn';
+      sbValid.innerHTML = `<span class="dot"></span>경고 ${warnings.length}건`;
+      docStatus.className = 'status-pill warn';
+      docStatus.innerHTML = `${ic('alert', 14)}<span>경고 ${warnings.length}건</span>`;
+    }
   } catch (e) {
     errChip.className = 'err-chip';
     errChip.innerHTML = `${ic('alert', 15)}<span>렌더링 오류: ${escapeHtml(e.message || String(e))}</span>`;
@@ -220,7 +238,7 @@ function closeFile(path) {
   if (activePath === path) {
     const next = [...openFiles.keys()].pop() || null;
     if (next) activate(next);
-    else { activePath = null; editor.setDoc('', 'yaml'); viewer.clear(); renderTabs(); }
+    else { activePath = null; editor.setDoc('', 'yaml'); viewer.clear(); renderTabs(); updatePreview(); }
   } else {
     renderTabs();
   }
@@ -291,10 +309,30 @@ async function doSave() {
   const f = activePath ? openFiles.get(activePath) : null;
   if (!f) return;
   try {
-    if (isTauri && f.path && !f.path.startsWith('(')) await saveFile(f.path, f.content);
-    else await saveAsDialog(f.name, f.content);
+    // 실제 절대 경로일 때만 덮어쓰기, 아니면(내장 예시·브라우저 폴백) 다른 이름으로 저장
+    if (isTauri && isRealPath(f.path)) {
+      await saveFile(f.path, f.content);
+    } else {
+      const saved = await saveAsDialog(f.name, f.content);
+      if (!saved) return;            // 사용자가 취소 → dirty 유지
+      if (saved !== f.path) rekeyFile(f, saved);
+    }
     f.dirty = false; renderTabs(); refreshTree();
   } catch (e) { alert('저장 실패: ' + (e.message || e)); }
+}
+
+// 다른 이름으로 저장 후 openFiles 키와 파일 정보를 새 경로로 옮긴다.
+function rekeyFile(f, newPath) {
+  const oldPath = f.path;
+  openFiles.delete(oldPath);
+  f.path = newPath;
+  f.name = baseName(newPath) || newPath;
+  f.ext = extOf(f.name) || f.ext;
+  openFiles.set(newPath, f);
+  if (activePath === oldPath) {
+    activePath = newPath;
+    document.getElementById('sb-lang').textContent = f.ext.toUpperCase();
+  }
 }
 
 // ---------- 내보내기 드롭다운 ----------
@@ -403,11 +441,16 @@ async function setupDragDrop() {
       else if (t === 'leave') overlay.classList.remove('show');
       else if (t === 'drop') {
         overlay.classList.remove('show');
-        const paths = (event.payload.paths || []).filter(isSpecFile);
+        const all = event.payload.paths || [];
+        const paths = all.filter(isSpecFile);
+        const failed = [];
         for (const p of paths) {
           try { openContent({ path: p, name: baseName(p), content: await readTextFile(p) }); }
-          catch (e) { console.error(e); }
+          catch (e) { console.error(e); failed.push(baseName(p)); }
         }
+        // 조용히 무시하면 "끌어다 놨는데 아무 일도 없다"가 되므로 이유를 알려 준다.
+        if (all.length && !paths.length) alert('YAML · JSON 파일만 열 수 있습니다.');
+        else if (failed.length) alert(`파일을 읽지 못했습니다:\n${failed.map((n) => `· ${n}`).join('\n')}\n\n홈 · 문서 · 바탕화면 · 다운로드 폴더 밖의 파일은 '파일 열기' 로 여세요.`);
       }
     });
   } else {
@@ -423,10 +466,61 @@ async function setupDragDrop() {
   }
 }
 
+// ---------- 종료 가드: 저장하지 않은 변경 확인 ----------
+function dirtyFiles() {
+  return [...openFiles.values()].filter((f) => f.dirty);
+}
+
+setupCloseGuard();
+async function setupCloseGuard() {
+  if (isTauri) {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    const { listen } = await import('@tauri-apps/api/event');
+    const { ask } = await import('@tauri-apps/plugin-dialog');
+    const { exit } = await import('@tauri-apps/plugin-process');
+    const win = getCurrentWindow();
+
+    // 변경 없음 → true, 있으면 사용자에게 묻고 "저장하지 않고 닫기" 를 골랐을 때만 true
+    let asking = false;
+    async function confirmDiscard() {
+      const dirty = dirtyFiles();
+      if (!dirty.length) return true;
+      if (asking) return false; // 대화상자가 이미 떠 있으면 중복 요청 무시
+      asking = true;
+      try {
+        const names = dirty.map((f) => `· ${f.name}`).join('\n');
+        return await ask(
+          `저장하지 않은 변경사항이 있습니다.\n\n${names}\n\n저장하지 않고 종료할까요?`,
+          { title: '종료 확인', kind: 'warning', okLabel: '저장하지 않고 닫기', cancelLabel: '취소' }
+        );
+      } finally { asking = false; }
+    }
+
+    // 창 닫기 버튼 / Cmd+W
+    await win.onCloseRequested(async (event) => {
+      if (!dirtyFiles().length) return;
+      event.preventDefault(); // 사용자가 확인하기 전에는 닫지 않는다
+      if (await confirmDiscard()) await win.destroy();
+    });
+    // Cmd+Q / 앱 메뉴 '종료': Rust 쪽(lib.rs)이 종료를 보류하고 이 이벤트를 보낸다.
+    // 확인이 끝나면 exit() 로 다시 종료 요청 (code 가 있으므로 Rust 가 통과시킨다).
+    await listen('app-quit-requested', async () => {
+      if (await confirmDiscard()) await exit(0);
+    });
+  } else {
+    // 브라우저 폴백: 기본 이탈 확인 대화상자
+    window.addEventListener('beforeunload', (e) => {
+      if (!dirtyFiles().length) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+  }
+}
+
 // ---------- 키보드 단축키 ----------
 window.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
-  if (mod && e.key === 's') { e.preventDefault(); doSave(); }
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); } // CapsLock 켜져도 동작
 });
 
 // ---------- 초기 로드: 예시 스펙 ----------

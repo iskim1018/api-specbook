@@ -12,7 +12,10 @@ export function createViewer(bodyEl) {
   const docPane = document.createElement('div');
   docPane.className = 'viewer-pane';
   const iframe = document.createElement('iframe');
-  iframe.setAttribute('sandbox', 'allow-same-origin allow-popups allow-scripts');
+  // allow-same-origin 은 srcdoc 과 함께 쓰면 샌드박스가 무력화되므로 제외한다.
+  // (문서 내 스크립트는 앱 DOM/스토리지에 접근할 이유가 없다)
+  iframe.setAttribute('sandbox', 'allow-popups allow-scripts');
+  iframe.setAttribute('allow', 'clipboard-write'); // 문서의 '복사' 버튼용 권한 위임
   iframe.title = '문서 미리보기';
   docPane.appendChild(iframe);
 
