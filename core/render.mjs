@@ -653,6 +653,19 @@ const JS = `
   window.addEventListener('scroll', highlight, { passive: true });
   highlight();
 
+  // 문서 내 앵커(#id) 이동은 해시 내비게이션 대신 스크롤로 처리한다.
+  // srcdoc iframe(앱 미리보기)에서는 '#id' 가 부모 URL 기준으로 풀려 문서 전체가 다른 페이지로 이동해 버린다.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href^="#"]');
+    if (!a) return;
+    var id = decodeURIComponent(a.getAttribute('href').slice(1));
+    var el = id && document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    el.scrollIntoView({ block: 'start' });
+    try { history.replaceState(null, '', '#' + id); } catch (_) {}
+  });
+
   // 트리 접기: 부모 행 토글 → 경로가 prefix 로 시작하는 모든 하위 행 숨김
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.tree-toggle');
