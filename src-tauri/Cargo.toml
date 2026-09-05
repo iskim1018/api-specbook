@@ -1,6 +1,6 @@
 [package]
 name = "api-specbook"
-version = "0.3.0"
+version = "0.3.1"
 description = "OpenAPI(Swagger) YAML/JSON 을 편집하고 표 중심 HTML 명세서·Swagger UI 로 미리보는 데스크톱 앱"
 authors = ["Insung Kim"]
 license = ""

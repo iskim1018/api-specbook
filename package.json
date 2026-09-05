@@ -1,6 +1,6 @@
 {
   "name": "api-specbook",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "OpenAPI(Swagger) YAML/JSON을 편집하고 표 중심 HTML 명세서·Swagger UI로 미리보는 데스크톱 앱 + CLI",
