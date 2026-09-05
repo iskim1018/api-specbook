@@ -12,7 +12,11 @@ import {
   openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportAs, firstSpecNode,
 } from './fileio.js';
 import { SAMPLE_NAME, SAMPLE_YAML } from './sample.js';
-import { checkForUpdate } from './updater.js';
+import { initUpdater, checkForUpdate, showUpdateBannerPreview } from './updater.js';
+
+// 단축키 표기 (툴팁용)
+const MOD = isMac ? '⌘' : 'Ctrl+';
+const SHIFT = isMac ? '⇧' : 'Shift+';
 
 // ---------- 앱 셸 ----------
 const app = document.getElementById('app');
@@ -36,9 +40,18 @@ app.innerHTML = `
       </div>
     </div>
     <div class="tb-spacer"></div>
+    <div class="tb-group panel-toggles">
+      <button class="icon-btn" id="btn-toggle-tree" aria-pressed="true" title="탐색기 (${MOD}B)">${ic('panelLeft', 17)}</button>
+      <button class="icon-btn" id="btn-toggle-editor" aria-pressed="true" title="에디터 (${MOD}${SHIFT}E)">${ic('code', 17)}</button>
+      <button class="icon-btn" id="btn-toggle-viewer" aria-pressed="true" title="미리보기 (${MOD}${SHIFT}V)">${ic('eye', 17)}</button>
+    </div>
+    <div class="tb-sep"></div>
     <div class="status-pill ok" id="doc-status">${ic('check', 14)}<span>정상</span></div>
+    <button class="icon-btn" id="btn-update" title="업데이트 확인">${ic('download', 17)}</button>
     <button class="icon-btn" id="btn-theme" title="라이트 / 다크 전환">${ic('moon', 17)}</button>
   </div>
+
+  <div class="update-banner hidden" id="update-banner"></div>
 
   <div class="body">
     <!-- 탐색기 -->
@@ -97,6 +110,7 @@ let activePath = null;
 let hideNonSpec = false;     // 스펙(YAML·JSON) 파일만 표시
 let htmlTheme = 'editorial'; // 문서(HTML) 출력 테마
 let appTheme = loadAppTheme(); // 'light' | 'dark'
+const panels = loadPanels();   // { tree, editor, viewer } — 표시 중인 패널
 
 function loadAppTheme() {
   try { const s = localStorage.getItem('appTheme'); if (s === 'light' || s === 'dark') return s; } catch {}
@@ -130,6 +144,68 @@ document.getElementById('html-theme').addEventListener('change', (e) => {
   htmlTheme = e.target.value;
   updatePreview();
 });
+
+// ---------- 패널 토글 (탐색기 · 에디터 · 미리보기) ----------
+const PANEL_ORDER = ['tree', 'editor', 'viewer'];
+const PANEL_SEL = { tree: '.explorer', editor: '.editor-panel', viewer: '.viewer-panel' };
+const PANEL_VAR = { tree: '--w-tree', editor: '--w-editor' };
+const FLEX_MIN = 280; // 1fr 로 늘어나는 패널의 최소 폭
+
+function loadPanels() {
+  const def = { tree: true, editor: true, viewer: true };
+  try {
+    const s = JSON.parse(localStorage.getItem('panels') || 'null');
+    if (s && typeof s === 'object') {
+      const p = { tree: s.tree !== false, editor: s.editor !== false, viewer: s.viewer !== false };
+      if (p.tree || p.editor || p.viewer) return p; // 전부 숨김 상태는 무시
+    }
+  } catch {}
+  return def;
+}
+
+function visiblePanels() {
+  return PANEL_ORDER.filter((k) => panels[k]);
+}
+
+// 보이는 패널만 grid 열로 만든다. 맨 오른쪽 패널이 항상 1fr 로 남는 폭을 차지한다.
+function applyLayout() {
+  const body = document.querySelector('.body');
+  const vis = visiblePanels();
+  const cols = [];
+  vis.forEach((k, i) => {
+    if (i) cols.push('6px');
+    cols.push(i === vis.length - 1 ? '1fr' : `var(${PANEL_VAR[k]})`);
+  });
+  body.style.gridTemplateColumns = cols.join(' ');
+
+  for (const k of PANEL_ORDER) {
+    document.querySelector(PANEL_SEL[k]).classList.toggle('hidden', !panels[k]);
+    const btn = document.getElementById(`btn-toggle-${k}`);
+    btn.classList.toggle('active', panels[k]);
+    btn.setAttribute('aria-pressed', String(panels[k]));
+  }
+  // 거터는 양쪽 패널이 모두 보일 때만 남긴다.
+  document.querySelector('.gutter[data-gutter="tree"]')
+    .classList.toggle('hidden', !(panels.tree && (panels.editor || panels.viewer)));
+  document.querySelector('.gutter[data-gutter="editor"]')
+    .classList.toggle('hidden', !(panels.editor && panels.viewer));
+
+  editor.view.requestMeasure(); // CodeMirror 레이아웃 재측정
+}
+
+function togglePanel(which) {
+  if (!PANEL_ORDER.includes(which)) return;
+  // 마지막 하나 남은 패널은 숨기지 않는다 (버튼은 눌린 상태 유지)
+  if (panels[which] && visiblePanels().length <= 1) return;
+  panels[which] = !panels[which];
+  try { localStorage.setItem('panels', JSON.stringify(panels)); } catch {}
+  applyLayout();
+}
+
+for (const k of PANEL_ORDER) {
+  document.getElementById(`btn-toggle-${k}`).addEventListener('click', () => togglePanel(k));
+}
+applyLayout();
 
 // ---------- 미리보기 갱신 ----------
 let previewTimer = null;
@@ -394,13 +470,12 @@ function setupGutters() {
   const root = document.documentElement;
   const body = document.querySelector('.body');
   const MIN = 200;         // 탐색기·에디터 최소 폭
-  const VIEWER_MIN = 280;  // 뷰어 최소 폭
 
   document.querySelectorAll('.gutter').forEach((g) => {
     g.addEventListener('mousedown', (e) => {
       e.preventDefault();
       const which = g.dataset.gutter;
-      const varName = which === 'tree' ? '--w-tree' : '--w-editor';
+      const varName = PANEL_VAR[which];
       const startX = e.clientX;
       const px = (name) => parseInt(getComputedStyle(root).getPropertyValue(name));
       const start = px(varName);
@@ -413,8 +488,13 @@ function setupGutters() {
 
       const onMove = (ev) => {
         const total = body.clientWidth;
-        const otherFixed = which === 'tree' ? px('--w-editor') : px('--w-tree');
-        const maxW = total - otherFixed - VIEWER_MIN - 12; // 두 거터(6px×2) 여유
+        const vis = visiblePanels();
+        const flex = vis[vis.length - 1]; // 1fr 로 늘어나는(=맨 오른쪽) 패널
+        // 숨긴 패널은 폭을 차지하지 않으므로, 지금 끄는 패널을 뺀 '보이는 고정폭' 만 더한다.
+        const otherFixed = vis
+          .filter((k) => k !== which && k !== flex)
+          .reduce((sum, k) => sum + px(PANEL_VAR[k]), 0);
+        const maxW = total - otherFixed - FLEX_MIN - 6 * (vis.length - 1); // 거터 6px × 개수
         const w = Math.max(MIN, Math.min(maxW, start + (ev.clientX - startX)));
         root.style.setProperty(varName, Math.round(w) + 'px');
       };
@@ -473,30 +553,32 @@ function dirtyFiles() {
   return [...openFiles.values()].filter((f) => f.dirty);
 }
 
+// 변경 없음 → true, 있으면 사용자에게 묻고 "저장하지 않고 닫기" 를 골랐을 때만 true.
+// 종료 가드와 업데이트 재시작이 함께 쓰므로 클로저 밖에 둔다.
+let askingDiscard = false;
+async function confirmDiscard() {
+  const dirty = dirtyFiles();
+  if (!dirty.length) return true;
+  if (!isTauri) return true; // 브라우저 폴백: beforeunload 가 대신 막는다
+  if (askingDiscard) return false; // 대화상자가 이미 떠 있으면 중복 요청 무시
+  askingDiscard = true;
+  try {
+    const { ask } = await import('@tauri-apps/plugin-dialog');
+    const names = dirty.map((f) => `· ${f.name}`).join('\n');
+    return await ask(
+      `저장하지 않은 변경사항이 있습니다.\n\n${names}\n\n저장하지 않고 종료할까요?`,
+      { title: '종료 확인', kind: 'warning', okLabel: '저장하지 않고 닫기', cancelLabel: '취소' }
+    );
+  } finally { askingDiscard = false; }
+}
+
 setupCloseGuard();
 async function setupCloseGuard() {
   if (isTauri) {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
     const { listen } = await import('@tauri-apps/api/event');
-    const { ask } = await import('@tauri-apps/plugin-dialog');
     const { exit } = await import('@tauri-apps/plugin-process');
     const win = getCurrentWindow();
-
-    // 변경 없음 → true, 있으면 사용자에게 묻고 "저장하지 않고 닫기" 를 골랐을 때만 true
-    let asking = false;
-    async function confirmDiscard() {
-      const dirty = dirtyFiles();
-      if (!dirty.length) return true;
-      if (asking) return false; // 대화상자가 이미 떠 있으면 중복 요청 무시
-      asking = true;
-      try {
-        const names = dirty.map((f) => `· ${f.name}`).join('\n');
-        return await ask(
-          `저장하지 않은 변경사항이 있습니다.\n\n${names}\n\n저장하지 않고 종료할까요?`,
-          { title: '종료 확인', kind: 'warning', okLabel: '저장하지 않고 닫기', cancelLabel: '취소' }
-        );
-      } finally { asking = false; }
-    }
 
     // 창 닫기 버튼 / Cmd+W
     await win.onCloseRequested(async (event) => {
@@ -511,6 +593,9 @@ async function setupCloseGuard() {
     });
     // 메뉴 '탭 닫기'(Cmd+W): 창이 아니라 활성 탭만 닫는다
     await listen('app-close-tab-requested', () => { if (activePath) closeFile(activePath); });
+    // macOS 는 메뉴 단축키가 웹뷰보다 먼저 키를 가져가므로 패널 토글도 메뉴에서 받는다
+    await listen('app-toggle-panel', (e) => togglePanel(e.payload));
+    await listen('app-check-update', () => checkForUpdate({ silent: false }));
   } else {
     // 브라우저 폴백: 기본 이탈 확인 대화상자
     window.addEventListener('beforeunload', (e) => {
@@ -547,15 +632,46 @@ if (isTauri && isMac) {
 window.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); } // CapsLock 켜져도 동작
-  // macOS 는 메뉴 단축키가 먼저 받으므로 여기는 Windows/Linux 용
+  // macOS 는 메뉴 단축키가 먼저 받으므로 아래는 Windows/Linux 용
   if (mod && e.key.toLowerCase() === 'w') { e.preventDefault(); if (activePath) closeFile(activePath); }
+  const k = e.key.toLowerCase();
+  if (mod && !e.shiftKey && k === 'b') { e.preventDefault(); togglePanel('tree'); }
+  if (mod && e.shiftKey && k === 'e') { e.preventDefault(); togglePanel('editor'); }
+  if (mod && e.shiftKey && k === 'v') { e.preventDefault(); togglePanel('viewer'); }
 });
+
+// ---------- 토스트 ----------
+function showToast(message, { kind = 'info', ms = 3200 } = {}) {
+  let host = document.querySelector('.toast-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'toast-host';
+    document.body.appendChild(host);
+  }
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind === 'error' ? ' error' : '');
+  el.textContent = message;
+  host.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 200);
+  }, ms);
+}
 
 // ---------- 초기 로드: 예시 스펙 ----------
 openContent({ path: SAMPLE_NAME, name: SAMPLE_NAME, content: SAMPLE_YAML });
 
-// ---------- 시작 시 업데이트 확인 (설치본에서만, 업데이트 있을 때만 안내) ----------
+// ---------- 업데이트 ----------
+initUpdater({ getDirtyFiles: dirtyFiles, confirmDiscard, showToast });
+document.getElementById('btn-update').addEventListener('click', () => checkForUpdate({ silent: false }));
+// 시작 시 자동 확인 (설치본에서만, 업데이트 있을 때만 안내)
 setTimeout(() => checkForUpdate({ silent: true }), 1500);
+
+// 개발 서버에서만: 브라우저로 배너·토스트 UI 를 확인하기 위한 훅
+if (import.meta.env.DEV) {
+  window.__specbookDev = { showUpdateBanner: showUpdateBannerPreview, showToast };
+}
 
 // ---------- 아이콘 ----------
 function ic(name, size = 16) {
@@ -575,6 +691,10 @@ function ic(name, size = 16) {
     chevron: '<path d="M6 9l6 6 6-6"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9.5 4v16"/>',
+    code: '<path d="M9 18l-6-6 6-6M15 6l6 6-6 6"/>',
+    eye: '<path d="M2 12s3.6-6.2 10-6.2S22 12 22 12s-3.6 6.2-10 6.2S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/>',
+    download: '<path d="M12 3v11M8 10.5l4 4 4-4"/><path d="M5 20h14"/>',
     palette: '<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="15.5" cy="10" r="1"/><path d="M12 21a3 3 0 0 0 0-6 2 2 0 0 1 0-4"/>',
   }[name] || '';
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;

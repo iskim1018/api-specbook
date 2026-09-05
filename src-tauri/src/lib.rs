@@ -51,8 +51,10 @@ fn setup_macos_menu(app: &mut tauri::App) -> tauri::Result<()> {
   let quit = MenuItemBuilder::with_id("quit", "API Specbook 종료")
     .accelerator("CmdOrCtrl+Q")
     .build(app)?;
+  let check_update = MenuItemBuilder::with_id("check-update", "업데이트 확인…").build(app)?;
   let app_menu = SubmenuBuilder::new(app, "API Specbook")
     .about(Some(AboutMetadata::default()))
+    .item(&check_update)
     .separator()
     .services()
     .separator()
@@ -71,6 +73,22 @@ fn setup_macos_menu(app: &mut tauri::App) -> tauri::Result<()> {
     .paste()
     .select_all()
     .build()?;
+  // macOS 는 메뉴 단축키가 웹뷰보다 먼저 키를 가져가므로, 패널 토글도 메뉴 항목으로 둔다.
+  // (Windows/Linux 는 메뉴 없이 main.js 의 keydown 이 처리한다)
+  let toggle_tree = MenuItemBuilder::with_id("toggle-tree", "탐색기 토글")
+    .accelerator("CmdOrCtrl+B")
+    .build(app)?;
+  let toggle_editor = MenuItemBuilder::with_id("toggle-editor", "에디터 토글")
+    .accelerator("CmdOrCtrl+Shift+E")
+    .build(app)?;
+  let toggle_viewer = MenuItemBuilder::with_id("toggle-viewer", "미리보기 토글")
+    .accelerator("CmdOrCtrl+Shift+V")
+    .build(app)?;
+  let view_menu = SubmenuBuilder::new(app, "보기")
+    .item(&toggle_tree)
+    .item(&toggle_editor)
+    .item(&toggle_viewer)
+    .build()?;
   // 기본 '창 닫기'(Cmd+W) 는 창을 닫아 앱이 종료되므로, Cmd+W 는 '탭 닫기' 로 쓴다.
   let close_tab = MenuItemBuilder::with_id("close-tab", "탭 닫기")
     .accelerator("CmdOrCtrl+W")
@@ -82,13 +100,17 @@ fn setup_macos_menu(app: &mut tauri::App) -> tauri::Result<()> {
     .item(&close_tab)
     .build()?;
   let menu = MenuBuilder::new(app)
-    .items(&[&app_menu, &edit_menu, &window_menu])
+    .items(&[&app_menu, &edit_menu, &view_menu, &window_menu])
     .build()?;
   app.set_menu(menu)?;
   app.on_menu_event(|app, event| {
     match event.id().as_ref() {
       "quit" => { let _ = app.emit("app-quit-requested", ()); }
       "close-tab" => { let _ = app.emit("app-close-tab-requested", ()); }
+      "check-update" => { let _ = app.emit("app-check-update", ()); }
+      "toggle-tree" => { let _ = app.emit("app-toggle-panel", "tree"); }
+      "toggle-editor" => { let _ = app.emit("app-toggle-panel", "editor"); }
+      "toggle-viewer" => { let _ = app.emit("app-toggle-panel", "viewer"); }
       _ => {}
     }
   });
