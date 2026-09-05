@@ -133,6 +133,7 @@ export function renderHtml(model, opts = {}) {
     <div class="sidebar-title">${esc(title)}</div>
     <div class="sidebar-version">${esc(version)}</div>
     <input type="search" id="navSearch" placeholder="API 검색 (이름, 경로, 필드명…)" autocomplete="off">
+    <div class="nav-search-count" id="navSearchCount"></div>
   </div>
   <nav class="nav">
     <a class="nav-link nav-top" href="#overview" data-search="개요 overview"><span class="nav-num">${numOverview}</span><span class="nav-text-flex">개요</span></a>
@@ -464,6 +465,9 @@ h5 { font-size: 12.5px; font-weight: 600; margin: 16px 0 4px; color: var(--muted
 .nav-link.active .nav-id { color: var(--accent); font-weight: 600; }
 .nav-link.hidden, .nav-group.hidden { display: none; }
 .nav-empty { padding: 12px 14px; color: var(--faint); font-size: 12.5px; }
+.nav-search-count { font-size: 11px; color: var(--faint); margin-top: 6px; min-height: 14px; }
+mark.hl { background: #ffe58a; color: inherit; padding: 0 1px; border-radius: 2px; }
+mark.hl.current { background: #ffb63d; box-shadow: 0 0 0 2px #ffb63d; }
 .nav-empty.hidden { display: none; }
 .nav-top { padding-left: 14px; font-size: 13px; font-weight: 700; }
 .nav-top .nav-num { font-weight: 400; }
@@ -614,7 +618,8 @@ const THEME_CSS = {
   --get:#4fae7a; --post:#5b8fe0; --put:#d1a24a; --patch:#a98be0; --delete:#e0776e;
   --ok:#4fae7a; --err:#e0776e; --field:#3d424a; --pre-ink:#c9c5bc;
 }
-::selection{background:#2f4a52;color:#fff;}`,
+::selection{background:#2f4a52;color:#fff;}
+mark.hl{background:#5d4d14;} mark.hl.current{background:#8a6f1c;box-shadow:0 0 0 2px #8a6f1c;}`,
   modern: `:root{
   --paper:#ffffff; --panel:#f4f6f8; --ink:#1f2430; --muted:#68707d; --faint:#9aa2af;
   --hair:#e7ebef; --hair-strong:#c3cad3; --rule:#1f2430; --accent:#2f6feb; --accent-soft:#eef3fe;
@@ -627,19 +632,73 @@ h1{letter-spacing:-.02em;}`,
 
 const JS = `
 (function () {
-  // 목차 검색
+  // 목차 + 본문 검색: 단어(공백 구분, AND)가 목차 색인 또는 본문 텍스트에 있으면 해당 API 를 남기고,
+  // 본문 일치 부분은 <mark> 로 표시한다. Enter / Shift+Enter 로 일치 위치를 순서대로 이동.
   var search = document.getElementById('navSearch');
+  var searchCount = document.getElementById('navSearchCount');
+  var navEmpty = document.querySelector('.nav-empty');
   var links = Array.prototype.slice.call(document.querySelectorAll('.nav-link[data-search]'));
   var groups = Array.prototype.slice.call(document.querySelectorAll('.nav-group'));
-  var navEmpty = document.querySelector('.nav-empty');
-  search.addEventListener('input', function () {
-    // 공백으로 나눈 단어가 모두 포함되어야 일치 (AND)
+  var main = document.querySelector('.main');
+  links.forEach(function (a) {
+    var el = document.getElementById(a.getAttribute('href').slice(1));
+    // 개요는 헤더(id) 와 그 다음 섹션(서버·설명)이 본문이다
+    a._els = el ? (el.id === 'overview' && el.nextElementSibling ? [el, el.nextElementSibling] : [el]) : [];
+    a._hay = (a.dataset.search || '').toLowerCase();
+  });
+  var marks = [], current = -1, timer = null;
+  function clearMarks() {
+    marks.forEach(function (m) {
+      var p = m.parentNode; if (!p) return;
+      p.replaceChild(document.createTextNode(m.textContent), m); p.normalize();
+    });
+    marks = []; current = -1;
+  }
+  function markTerms(root, terms) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+      if (!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      var p = n.parentNode;
+      if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.tagName === 'MARK') return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    } });
+    var nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function (node) {
+      var text = node.nodeValue, lower = text.toLowerCase(), ranges = [];
+      terms.forEach(function (t) { var i = 0; while ((i = lower.indexOf(t, i)) >= 0) { ranges.push([i, i + t.length]); i += t.length; } });
+      if (!ranges.length) return;
+      ranges.sort(function (a, b) { return a[0] - b[0]; });
+      var merged = [];
+      ranges.forEach(function (r) { var last = merged[merged.length - 1]; if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else merged.push(r.slice()); });
+      var frag = document.createDocumentFragment(), pos = 0;
+      merged.forEach(function (r) {
+        if (r[0] > pos) frag.appendChild(document.createTextNode(text.slice(pos, r[0])));
+        var m = document.createElement('mark'); m.className = 'hl'; m.textContent = text.slice(r[0], r[1]);
+        frag.appendChild(m); marks.push(m); pos = r[1];
+      });
+      if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
+  function hasMatch(a, terms) {
+    return terms.every(function (t) {
+      if (a._hay.indexOf(t) >= 0) return true;
+      return a._els.some(function (el) { return el.textContent.toLowerCase().indexOf(t) >= 0; });
+    });
+  }
+  function goTo(i) {
+    if (!marks.length) return;
+    if (current >= 0 && marks[current]) marks[current].classList.remove('current');
+    current = (i + marks.length) % marks.length;
+    var m = marks[current];
+    m.classList.add('current');
+    m.scrollIntoView({ block: 'center' });
+    searchCount.textContent = (current + 1) + ' / ' + marks.length + ' 곳 · Enter 다음, Shift+Enter 이전';
+  }
+  function runSearch() {
     var terms = search.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);
     var q = terms.length > 0;
-    links.forEach(function (a) {
-      var hay = a.dataset.search;
-      a.classList.toggle('hidden', q && !terms.every(function (t) { return hay.indexOf(t) >= 0; }));
-    });
+    clearMarks();
+    links.forEach(function (a) { a.classList.toggle('hidden', q && !hasMatch(a, terms)); });
     if (navEmpty) navEmpty.classList.toggle('hidden', !q || links.some(function (a) { return !a.classList.contains('hidden'); }));
     groups.forEach(function (g) {
       var anyVisible = !!g.querySelector('.nav-link:not(.hidden)');
@@ -650,6 +709,19 @@ const JS = `
         if (t) t.classList.remove('collapsed');
       }
     });
+    if (q) {
+      markTerms(main, terms);
+      // 접힌 응답(details) 안의 일치는 보이도록 펼친다
+      marks.forEach(function (m) { var d = m.closest('details'); while (d) { d.open = true; d = d.parentElement ? d.parentElement.closest('details') : null; } });
+      searchCount.textContent = marks.length ? '본문 ' + marks.length + ' 곳 · Enter 로 이동' : '본문 일치 없음';
+    } else {
+      searchCount.textContent = '';
+    }
+  }
+  search.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(runSearch, 120); });
+  search.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); if (timer) { clearTimeout(timer); timer = null; runSearch(); } goTo(e.shiftKey ? current - 1 : current + 1); }
+    if (e.key === 'Escape') { search.value = ''; runSearch(); }
   });
 
   // 현재 위치 강조
