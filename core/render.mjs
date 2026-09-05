@@ -580,7 +580,7 @@ pre.json { max-height: 480px; overflow: auto; }
 @media (max-width: 960px) {
   .sidebar { transform: translateX(-100%); transition: transform .2s; }
   .sidebar.open { transform: none; box-shadow: 0 0 0 100vw rgba(0,0,0,.25); }
-  .nav-toggle { display: block; position: fixed; top: 10px; left: 10px; z-index: 20; border: 1px solid var(--hair-strong); background: var(--paper); border-radius: 3px; padding: 6px 10px; font-size: 16px; cursor: pointer; }
+  .nav-toggle { display: block; position: fixed; top: 10px; left: 10px; z-index: 20; border: 1px solid var(--hair-strong); background: var(--paper); color: var(--ink); border-radius: 3px; padding: 6px 10px; font-size: 16px; cursor: pointer; }
   .nav-toggle[aria-expanded="true"] { display: none; }
   .main { margin-left: 0; padding: 56px 18px 60px; }
 }
