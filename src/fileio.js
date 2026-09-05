@@ -1,6 +1,11 @@
 // 파일 입출력: Tauri 환경이면 네이티브 다이얼로그/FS, 아니면 브라우저 폴백(개발·미리보기용).
 
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+// macOS 저장 패널은 확장자 필터(allowedFileTypes)가 걸리면 이름칸의 확장자를 숨겨 버려
+// 사용자가 무엇으로 저장되는지 알 수 없다. 저장/내보내기 패널에서는 필터를 빼고
+// (확장자는 ensureExt 로 보장) 열기 패널에만 필터를 건다.
+const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent || '');
+const saveFilters = (filters) => (isMac ? undefined : filters);
 
 const SPEC_EXTS = ['yaml', 'yml', 'json'];
 
@@ -143,7 +148,7 @@ export async function saveAsDialog(defaultName, content) {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
     let path = await save({
       defaultPath: defaultName,
-      filters: [{ name: 'OpenAPI', extensions: ['yaml', 'yml', 'json'] }],
+      filters: saveFilters([{ name: 'OpenAPI', extensions: ['yaml', 'yml', 'json'] }]),
     });
     if (!path) return null;
     path = ensureExt(path, ['yaml', 'yml', 'json']);
@@ -167,7 +172,7 @@ export async function exportAs(defaultName, content, fmt) {
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog');
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-    let path = await save({ defaultPath: defaultName, filters: [filter] });
+    let path = await save({ defaultPath: defaultName, filters: saveFilters([filter]) });
     if (!path) return null;
     path = ensureExt(path, filter.extensions);
     await writeTextFile(path, content);

@@ -55,7 +55,7 @@ function renderNode(node, depth, ctx, frag) {
     const dirty = ctx.dirtyPaths?.has(node.path);
     row.className = 'row file' + (active ? ' active' : '') + (node.isSpec ? '' : ' disabled');
     row.style.paddingLeft = pad + 8 + 'px';
-    const dot = dirty ? '<span class="dirty-dot"></span>' : active ? '<span class="tab-dot"></span>' : '';
+    const dot = dirty ? '<span class="dirty-dot"></span>' : '';
     row.innerHTML = `${extBadge(node)}<span class="name">${esc(node.name)}</span>${dot}`;
     row.title = node.isSpec ? node.path : `${node.name} (지원하지 않는 형식)`;
     if (node.isSpec) row.addEventListener('click', () => ctx.onSelect(node));

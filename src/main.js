@@ -253,7 +253,7 @@ function renderTabs() {
     const tab = document.createElement('div');
     const isActive = f.path === activePath;
     tab.className = 'tab' + (isActive ? ' active' : '');
-    const dot = f.dirty ? '<span class="dirty-dot"></span>' : isActive ? '<span class="tab-dot"></span>' : '';
+    const dot = f.dirty ? '<span class="dirty-dot"></span>' : '';
     tab.innerHTML =
       dot +
       `<span>${escapeHtml(f.name)}</span>` +

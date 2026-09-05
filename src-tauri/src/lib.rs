@@ -18,14 +18,15 @@ pub fn run() {
             .build(),
         )?;
       }
+      #[cfg(target_os = "macos")]
+      setup_macos_menu(app)?;
       Ok(())
     })
     .build(tauri::generate_context!())
     .expect("error while running tauri application")
     .run(|app, event| {
-      // macOS Cmd+Q / 앱 메뉴 '종료' 는 창 close-requested 를 거치지 않고 바로 종료 요청이 온다.
-      // 창이 아직 살아 있으면 종료를 보류하고 프론트엔드에 맡겨 미저장 확인을 거치게 한다.
-      // (code 가 Some 이면 프론트엔드가 확인 후 exit() 로 다시 요청한 것이므로 통과)
+      // 창이 살아 있는데 종료 요청(code 없음)이 오면 보류하고 프론트엔드에 미저장 확인을 맡긴다.
+      // 프론트엔드가 확인 후 exit(0) 로 다시 요청하면 code 가 Some 이므로 통과한다.
       // 마지막 창이 이미 닫혀 창이 없으면 그대로 종료한다.
       if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
         if code.is_none() && !app.webview_windows().is_empty() {
@@ -34,4 +35,53 @@ pub fn run() {
         }
       }
     });
+}
+
+// macOS 기본 메뉴의 '종료'(Cmd+Q) 는 NSApp terminate: 로 바로 프로세스를 끝내 버려
+// ExitRequested 를 거치지 않는다. 종료 항목만 우리 것으로 바꿔 이벤트를 보내고,
+// 실제 종료는 프론트엔드가 미저장 확인을 마친 뒤 exit() 로 한다.
+// 편집 메뉴는 웹뷰에서 Cmd+C/V/Z 등이 동작하도록 그대로 둔다.
+#[cfg(target_os = "macos")]
+fn setup_macos_menu(app: &mut tauri::App) -> tauri::Result<()> {
+  use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+
+  let quit = MenuItemBuilder::with_id("quit", "API Specbook 종료")
+    .accelerator("CmdOrCtrl+Q")
+    .build(app)?;
+  let app_menu = SubmenuBuilder::new(app, "API Specbook")
+    .about(Some(AboutMetadata::default()))
+    .separator()
+    .services()
+    .separator()
+    .hide()
+    .hide_others()
+    .show_all()
+    .separator()
+    .item(&quit)
+    .build()?;
+  let edit_menu = SubmenuBuilder::new(app, "편집")
+    .undo()
+    .redo()
+    .separator()
+    .cut()
+    .copy()
+    .paste()
+    .select_all()
+    .build()?;
+  let window_menu = SubmenuBuilder::new(app, "윈도우")
+    .minimize()
+    .maximize()
+    .separator()
+    .close_window()
+    .build()?;
+  let menu = MenuBuilder::new(app)
+    .items(&[&app_menu, &edit_menu, &window_menu])
+    .build()?;
+  app.set_menu(menu)?;
+  app.on_menu_event(|app, event| {
+    if event.id() == "quit" {
+      let _ = app.emit("app-quit-requested", ());
+    }
+  });
+  Ok(())
 }
