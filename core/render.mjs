@@ -87,6 +87,16 @@ function tagSlugs(groups) {
     return slug;
   });
 }
+// 목차 검색 색인: ID·요약·메서드·경로·태그 + 파라미터/본문/응답 필드명 + 설명(앞부분)
+function searchIndex(op, tag) {
+  const names = [];
+  for (const g of op.parameters) for (const r of g.rows) names.push(r.name);
+  if (op.requestBody) for (const r of op.requestBody.rows) names.push(r.name);
+  for (const res of op.responses) for (const r of res.rows) names.push(r.name);
+  const desc = String(op.description ?? '').replace(/\s+/g, ' ').slice(0, 300);
+  return [op.operationId, op.summary, op.method, op.path, tag, ...names, desc]
+    .filter(Boolean).join(' ').toLowerCase();
+}
 const json = (v) => esc(JSON.stringify(v, null, 2));
 const jsonInline = (v) => (v === undefined ? '' : typeof v === 'object' ? esc(JSON.stringify(v)) : esc(String(v)));
 
@@ -122,11 +132,12 @@ export function renderHtml(model, opts = {}) {
   <div class="sidebar-head">
     <div class="sidebar-title">${esc(title)}</div>
     <div class="sidebar-version">${esc(version)}</div>
-    <input type="search" id="navSearch" placeholder="API 검색 (ID, 이름, 경로)" autocomplete="off">
+    <input type="search" id="navSearch" placeholder="API 검색 (이름, 경로, 필드명…)" autocomplete="off">
   </div>
   <nav class="nav">
-    <a class="nav-link nav-top" href="#overview"><span class="nav-num">${numOverview}</span><span class="nav-text-flex">개요</span></a>
-    ${numSecurity ? `<a class="nav-link nav-top" href="#security"><span class="nav-num">${numSecurity}</span><span class="nav-text-flex">인증</span></a>` : ''}
+    <a class="nav-link nav-top" href="#overview" data-search="개요 overview"><span class="nav-num">${numOverview}</span><span class="nav-text-flex">개요</span></a>
+    ${numSecurity ? `<a class="nav-link nav-top" href="#security" data-search="인증 security"><span class="nav-num">${numSecurity}</span><span class="nav-text-flex">인증</span></a>` : ''}
+    <div class="nav-empty hidden">검색 결과 없음</div>
     ${model.groups
       .map(
         (g, gi) => `
@@ -135,7 +146,7 @@ export function renderHtml(model, opts = {}) {
       ${g.ops
         .map(
           (op, oi) => `
-      <a class="nav-link" href="#${op.id}" data-search="${esc(`${op.operationId} ${op.summary} ${op.path}`.toLowerCase())}">
+      <a class="nav-link" href="#${op.id}" data-search="${esc(searchIndex(op, g.tag))}">
         <span class="nav-num">${groupNo[gi]}.${oi + 1}</span>
         <span class="nav-text">
           <span class="nav-id">${esc(op.operationId || op.summary || op.path)}</span>
@@ -452,6 +463,8 @@ h5 { font-size: 12.5px; font-weight: 600; margin: 16px 0 4px; color: var(--muted
 .nav-link.active { border-left-color: var(--accent); background: var(--accent-soft); }
 .nav-link.active .nav-id { color: var(--accent); font-weight: 600; }
 .nav-link.hidden, .nav-group.hidden { display: none; }
+.nav-empty { padding: 12px 14px; color: var(--faint); font-size: 12.5px; }
+.nav-empty.hidden { display: none; }
 .nav-top { padding-left: 14px; font-size: 13px; font-weight: 700; }
 .nav-top .nav-num { font-weight: 400; }
 .nav-top .nav-id { font-weight: 600; }
@@ -618,9 +631,16 @@ const JS = `
   var search = document.getElementById('navSearch');
   var links = Array.prototype.slice.call(document.querySelectorAll('.nav-link[data-search]'));
   var groups = Array.prototype.slice.call(document.querySelectorAll('.nav-group'));
+  var navEmpty = document.querySelector('.nav-empty');
   search.addEventListener('input', function () {
-    var q = search.value.trim().toLowerCase();
-    links.forEach(function (a) { a.classList.toggle('hidden', q && a.dataset.search.indexOf(q) < 0); });
+    // 공백으로 나눈 단어가 모두 포함되어야 일치 (AND)
+    var terms = search.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);
+    var q = terms.length > 0;
+    links.forEach(function (a) {
+      var hay = a.dataset.search;
+      a.classList.toggle('hidden', q && !terms.every(function (t) { return hay.indexOf(t) >= 0; }));
+    });
+    if (navEmpty) navEmpty.classList.toggle('hidden', !q || links.some(function (a) { return !a.classList.contains('hidden'); }));
     groups.forEach(function (g) {
       var anyVisible = !!g.querySelector('.nav-link:not(.hidden)');
       g.classList.toggle('hidden', !anyVisible);

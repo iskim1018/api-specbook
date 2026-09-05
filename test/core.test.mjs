@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { buildModel } from '../core/model.mjs';
 import { renderHtml, slugify } from '../core/render.mjs';
+import { SAMPLE_YAML } from '../src/sample.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -483,4 +484,14 @@ test('smoke: sample/example.yaml 이 렌더링되고 제목이 들어간다', ()
   assert.ok(model.ops.length > 0, 'API 가 하나도 없음');
   assert.ok(out.includes(`<title>${doc.info.title}`), '제목이 문서에 없음');
   assert.ok(out.startsWith('<!doctype html>'));
+});
+
+test('검색 색인: 파라미터·필드명·메서드·태그도 목차 data-search 에 들어간다', () => {
+  // 앱 내장 예시(안전관리 API)로 확인: page/size 는 query 파라미터라 이전 색인(ID·요약·경로)엔 없었다
+  const html = renderHtml(buildModel(yaml.load(SAMPLE_YAML)), { generatedAt: '2026-01-01' });
+  const m = /<a class="nav-link" href="#[^"]+" data-search="([^"]+)">/.exec(html);
+  assert.ok(m, 'nav-link 있음');
+  const idx = m[1];
+  for (const term of ['page', 'size', 'get', '관리자', '/api/v1/managers']) assert.ok(idx.includes(term.toLowerCase()), `색인에 ${term}`);
+  assert.ok(html.includes('class="nav-empty hidden"'));
 });
