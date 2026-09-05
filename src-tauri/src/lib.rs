@@ -1,8 +1,11 @@
 use tauri::{Emitter, Manager};
 
+mod mac_dialog;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .invoke_handler(tauri::generate_handler![mac_dialog::mac_save_dialog])
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .setup(|app| {
@@ -68,19 +71,25 @@ fn setup_macos_menu(app: &mut tauri::App) -> tauri::Result<()> {
     .paste()
     .select_all()
     .build()?;
+  // 기본 '창 닫기'(Cmd+W) 는 창을 닫아 앱이 종료되므로, Cmd+W 는 '탭 닫기' 로 쓴다.
+  let close_tab = MenuItemBuilder::with_id("close-tab", "탭 닫기")
+    .accelerator("CmdOrCtrl+W")
+    .build(app)?;
   let window_menu = SubmenuBuilder::new(app, "윈도우")
     .minimize()
     .maximize()
     .separator()
-    .close_window()
+    .item(&close_tab)
     .build()?;
   let menu = MenuBuilder::new(app)
     .items(&[&app_menu, &edit_menu, &window_menu])
     .build()?;
   app.set_menu(menu)?;
   app.on_menu_event(|app, event| {
-    if event.id() == "quit" {
-      let _ = app.emit("app-quit-requested", ());
+    match event.id().as_ref() {
+      "quit" => { let _ = app.emit("app-quit-requested", ()); }
+      "close-tab" => { let _ = app.emit("app-close-tab-requested", ()); }
+      _ => {}
     }
   });
   Ok(())

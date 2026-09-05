@@ -6,9 +6,10 @@ macOS(Universal) + Windows 설치본을 빌드해 **GitHub Release 초안**에 �
 
 ## 절차
 
-1. 버전 올리기 — 아래 두 파일의 `version` 을 같은 값으로 맞춘다.
+1. 버전 올리기 — 아래 세 파일의 `version` 을 같은 값으로 맞춘다.
    - `package.json`
    - `src-tauri/tauri.conf.json`
+   - `src-tauri/Cargo.toml`
 2. 커밋 후 태그를 push 한다.
 
    ```bash

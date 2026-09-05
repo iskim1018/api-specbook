@@ -8,7 +8,7 @@ import { createEditor } from './editor.js';
 import { createViewer } from './viewer.js';
 import { renderTree } from './tree.js';
 import {
-  isTauri, extOf, baseName, isSpecFile, isRealPath,
+  isTauri, isMac, extOf, baseName, isSpecFile, isRealPath,
   openFileDialog, openFolderDialog, readFile, saveFile, saveAsDialog, exportAs, firstSpecNode,
 } from './fileio.js';
 import { SAMPLE_NAME, SAMPLE_YAML } from './sample.js';
@@ -90,7 +90,7 @@ app.innerHTML = `
 `;
 
 // ---------- 상태 ----------
-const openFiles = new Map(); // path -> { path, name, ext, content, dirty }
+const openFiles = new Map(); // path -> { path, name, ext, content, saved(마지막 저장 내용), dirty }
 let treeRoot = null;         // 폴더 열기로 얻은 트리 루트 노드
 let folderName = null;
 let activePath = null;
@@ -196,7 +196,9 @@ function onEditorChange(text) {
   if (!f) return;
   if (f.content !== text) {
     f.content = text;
-    if (!f.dirty) { f.dirty = true; renderTabs(); refreshTree(); }
+    // 마지막 저장(또는 열기) 시점과 같아지면(Cmd+Z 로 되돌림 등) 수정 표시를 지운다
+    const dirty = text !== f.saved;
+    if (dirty !== f.dirty) { f.dirty = dirty; renderTabs(); refreshTree(); }
   }
   schedulePreview();
 }
@@ -206,7 +208,7 @@ function openContent({ path, name, content }) {
   const ext = extOf(name) || 'yaml';
   const existing = openFiles.get(path);
   if (existing) { activate(path); return; }
-  openFiles.set(path, { path, name, ext, content, dirty: false });
+  openFiles.set(path, { path, name, ext, content, saved: content, dirty: false });
   activate(path);
 }
 
@@ -317,7 +319,7 @@ async function doSave() {
       if (!saved) return;            // 사용자가 취소 → dirty 유지
       if (saved !== f.path) rekeyFile(f, saved);
     }
-    f.dirty = false; renderTabs(); refreshTree();
+    f.saved = f.content; f.dirty = false; renderTabs(); refreshTree();
   } catch (e) { alert('저장 실패: ' + (e.message || e)); }
 }
 
@@ -507,6 +509,8 @@ async function setupCloseGuard() {
     await listen('app-quit-requested', async () => {
       if (await confirmDiscard()) await exit(0);
     });
+    // 메뉴 '탭 닫기'(Cmd+W): 창이 아니라 활성 탭만 닫는다
+    await listen('app-close-tab-requested', () => { if (activePath) closeFile(activePath); });
   } else {
     // 브라우저 폴백: 기본 이탈 확인 대화상자
     window.addEventListener('beforeunload', (e) => {
@@ -517,10 +521,34 @@ async function setupCloseGuard() {
   }
 }
 
+// ---------- macOS 첫 클릭 유실 보완 ----------
+// 한글 입력기 + 트랙패드 탭 클릭: 에디터(contenteditable)에 포커스가 있을 때 다른 요소를 탭하면
+// 에디터 blur 가 UI 프로세스에 반영되기 전에 도착한 짧은 mouseUp 을 입력기가 삼켜 click 이 오지 않는다
+// (pointerdown/mousedown 은 정상 도착). 그 조건에서는 pointerdown 시점에 바로 click 을 발생시키고,
+// 뒤늦게 진짜 click 이 같은 요소에 오면(물리 클릭 등) 중복이므로 무시한다.
+if (isTauri && isMac) {
+  let synthetic = null; // { target, until }
+  document.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const cm = document.querySelector('.cm-content');
+    if (!cm || document.activeElement !== cm || cm.contains(e.target)) return; // 에디터 안 클릭은 정상 동작
+    const target = e.target;
+    synthetic = { target, until: performance.now() + 600 };
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, view: window }));
+  }, true);
+  document.addEventListener('click', (e) => {
+    if (!synthetic || !e.isTrusted) return;
+    if (performance.now() < synthetic.until && e.target === synthetic.target) { e.stopPropagation(); e.preventDefault(); }
+    synthetic = null;
+  }, true);
+}
+
 // ---------- 키보드 단축키 ----------
 window.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); } // CapsLock 켜져도 동작
+  // macOS 는 메뉴 단축키가 먼저 받으므로 여기는 Windows/Linux 용
+  if (mod && e.key.toLowerCase() === 'w') { e.preventDefault(); if (activePath) closeFile(activePath); }
 });
 
 // ---------- 초기 로드: 예시 스펙 ----------

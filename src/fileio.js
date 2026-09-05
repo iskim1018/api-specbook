@@ -4,8 +4,18 @@ export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in
 // macOS 저장 패널은 확장자 필터(allowedFileTypes)가 걸리면 이름칸의 확장자를 숨겨 버려
 // 사용자가 무엇으로 저장되는지 알 수 없다. 저장/내보내기 패널에서는 필터를 빼고
 // (확장자는 ensureExt 로 보장) 열기 패널에만 필터를 건다.
-const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent || '');
-const saveFilters = (filters) => (isMac ? undefined : filters);
+export const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent || '');
+
+// 저장 패널: macOS 는 확장자를 항상 보여 주는 자체 패널(Rust mac_save_dialog), 그 외는 dialog 플러그인.
+async function showSavePanel(defaultName, filters) {
+  if (isMac) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const extensions = filters.flatMap((f) => f.extensions);
+    return invoke('mac_save_dialog', { defaultName, extensions });
+  }
+  const { save } = await import('@tauri-apps/plugin-dialog');
+  return save({ defaultPath: defaultName, filters });
+}
 
 const SPEC_EXTS = ['yaml', 'yml', 'json'];
 
@@ -144,12 +154,8 @@ export async function saveFile(path, content) {
 
 export async function saveAsDialog(defaultName, content) {
   if (isTauri) {
-    const { save } = await import('@tauri-apps/plugin-dialog');
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-    let path = await save({
-      defaultPath: defaultName,
-      filters: saveFilters([{ name: 'OpenAPI', extensions: ['yaml', 'yml', 'json'] }]),
-    });
+    let path = await showSavePanel(defaultName, [{ name: 'OpenAPI', extensions: ['yaml', 'yml', 'json'] }]);
     if (!path) return null;
     path = ensureExt(path, ['yaml', 'yml', 'json']);
     await writeTextFile(path, content);
@@ -170,9 +176,8 @@ const EXPORT_MIME = { yaml: 'text/yaml', json: 'application/json', html: 'text/h
 export async function exportAs(defaultName, content, fmt) {
   const filter = EXPORT_FILTERS[fmt] || { name: 'File', extensions: [fmt] };
   if (isTauri) {
-    const { save } = await import('@tauri-apps/plugin-dialog');
     const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-    let path = await save({ defaultPath: defaultName, filters: saveFilters([filter]) });
+    let path = await showSavePanel(defaultName, [filter]);
     if (!path) return null;
     path = ensureExt(path, filter.extensions);
     await writeTextFile(path, content);
