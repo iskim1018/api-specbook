@@ -2,7 +2,7 @@ import './style.css';
 import logoUrl from './assets/logo.png';
 import yaml from 'js-yaml';
 import { buildModel } from '../core/model.mjs';
-import { renderHtml, HTML_THEMES } from '../core/render.mjs';
+import { renderHtml } from '../core/render.mjs';
 import { parseSpec } from './parse.js';
 import { createEditor } from './editor.js';
 import { createViewer } from './viewer.js';
@@ -43,11 +43,11 @@ app.innerHTML = `
     <div class="tb-group panel-toggles">
       <button class="icon-btn" id="btn-toggle-tree" aria-pressed="true" title="탐색기 (${MOD}B)">${ic('panelLeft', 17)}</button>
       <button class="icon-btn" id="btn-toggle-editor" aria-pressed="true" title="에디터 (${MOD}${SHIFT}E)">${ic('code', 17)}</button>
-      <button class="icon-btn" id="btn-toggle-viewer" aria-pressed="true" title="미리보기 (${MOD}${SHIFT}V)">${ic('eye', 17)}</button>
+      <button class="icon-btn" id="btn-toggle-viewer" aria-pressed="true" title="미리보기 (${MOD}${SHIFT}V)">${ic('panelRight', 17)}</button>
     </div>
     <div class="tb-sep"></div>
     <div class="status-pill ok" id="doc-status">${ic('check', 14)}<span>정상</span></div>
-    <button class="icon-btn" id="btn-update" title="업데이트 확인">${ic('download', 17)}</button>
+    <button class="icon-btn" id="btn-update" title="업데이트 확인">${ic('refresh', 17)}</button>
     <button class="icon-btn" id="btn-theme" title="라이트 / 다크 전환">${ic('moon', 17)}</button>
   </div>
 
@@ -87,11 +87,6 @@ app.innerHTML = `
           <div class="vtab" data-vtab="swagger">${ic('layers')}Swagger UI</div>
           <div class="vtab active" data-vtab="doc">${ic('doc')}문서 (HTML)</div>
         </div>
-        <label class="html-theme-wrap" title="문서(HTML) 테마">${ic('palette', 14)}
-          <select class="html-theme" id="html-theme">
-            ${HTML_THEMES.map((t) => `<option value="${t.id}">${t.name}</option>`).join('')}
-          </select>
-        </label>
       </div>
       <div class="viewer-body" id="viewer-body"></div>
     </div>
@@ -108,7 +103,8 @@ let treeRoot = null;         // 폴더 열기로 얻은 트리 루트 노드
 let folderName = null;
 let activePath = null;
 let hideNonSpec = false;     // 스펙(YAML·JSON) 파일만 표시
-let htmlTheme = 'editorial'; // 문서(HTML) 출력 테마
+// 문서(HTML) 미리보기 테마는 앱 테마를 따른다 (내보내기는 공유용이므로 항상 라이트)
+const docTheme = () => (appTheme === 'dark' ? 'dark' : 'editorial');
 let appTheme = loadAppTheme(); // 'light' | 'dark'
 const panels = loadPanels();   // { tree, editor, viewer } — 표시 중인 패널
 
@@ -121,7 +117,7 @@ function applyAppTheme(t, updateEditor = true) {
   document.documentElement.dataset.theme = t;
   const btn = document.getElementById('btn-theme');
   if (btn) btn.innerHTML = ic(t === 'dark' ? 'sun' : 'moon', 17);
-  if (updateEditor) editor.setTheme(t === 'dark');
+  if (updateEditor) { editor.setTheme(t === 'dark'); updatePreview(); } // 문서 미리보기도 같은 테마로
   try { localStorage.setItem('appTheme', t); } catch {}
 }
 // 인스턴스 생성 전에 data-theme·버튼만 반영 (에디터는 아래에서 dark 옵션으로)
@@ -139,10 +135,6 @@ const editor = createEditor(document.getElementById('cm-host'), {
 
 document.getElementById('btn-theme').addEventListener('click', () => {
   applyAppTheme(appTheme === 'dark' ? 'light' : 'dark');
-});
-document.getElementById('html-theme').addEventListener('change', (e) => {
-  htmlTheme = e.target.value;
-  updatePreview();
 });
 
 // ---------- 패널 토글 (탐색기 · 에디터 · 미리보기) ----------
@@ -248,7 +240,7 @@ function updatePreview() {
 
   try {
     const model = buildModel(doc);
-    const html = renderHtml(model, { theme: htmlTheme });
+    const html = renderHtml(model, { theme: docTheme() });
     viewer.setContent({ html, spec: doc });
     // 문서는 만들어졌지만 없는 $ref 등 경고가 있으면 오류와 구분해 알려 준다
     const warnings = model.warnings || [];
@@ -438,7 +430,7 @@ async function exportSpec(fmt) {
   let content, outName;
   try {
     if (fmt === 'html') {
-      content = renderHtml(buildModel(doc), { theme: htmlTheme });
+      content = renderHtml(buildModel(doc), { theme: 'editorial' });
       outName = stem + '.html';
     } else if (fmt === 'json') {
       // 이미 JSON이면 원본 유지, 아니면 변환
@@ -612,18 +604,23 @@ async function setupCloseGuard() {
 // (pointerdown/mousedown 은 정상 도착). 그 조건에서는 pointerdown 시점에 바로 click 을 발생시키고,
 // 뒤늦게 진짜 click 이 같은 요소에 오면(물리 클릭 등) 중복이므로 무시한다.
 if (isTauri && isMac) {
-  let synthetic = null; // { target, until }
+  let synthetic = null; // { key, until }
+  // 클릭 대상의 식별자: 가장 가까운 인터랙티브 요소(id 가 있으면 id). 토글 버튼처럼 내부가 재렌더돼도 같은 것으로 본다
+  const clickKey = (el) => {
+    const it = el.closest('button, a, .tab, .vtab, .row, .export-item, label, input, select') || el;
+    return it.id ? '#' + it.id : it;
+  };
   document.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     const cm = document.querySelector('.cm-content');
     if (!cm || document.activeElement !== cm || cm.contains(e.target)) return; // 에디터 안 클릭은 정상 동작
     const target = e.target;
-    synthetic = { target, until: performance.now() + 600 };
+    synthetic = { key: clickKey(target), until: performance.now() + 600 };
     target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, view: window }));
   }, true);
   document.addEventListener('click', (e) => {
     if (!synthetic || !e.isTrusted) return;
-    if (performance.now() < synthetic.until && e.target === synthetic.target) { e.stopPropagation(); e.preventDefault(); }
+    if (performance.now() < synthetic.until && clickKey(e.target) === synthetic.key) { e.stopPropagation(); e.preventDefault(); }
     synthetic = null;
   }, true);
 }
@@ -693,8 +690,8 @@ function ic(name, size = 16) {
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     panelLeft: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9.5 4v16"/>',
     code: '<path d="M9 18l-6-6 6-6M15 6l6 6-6 6"/>',
-    eye: '<path d="M2 12s3.6-6.2 10-6.2S22 12 22 12s-3.6 6.2-10 6.2S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/>',
-    download: '<path d="M12 3v11M8 10.5l4 4 4-4"/><path d="M5 20h14"/>',
+    panelRight: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14.5 4v16"/>',
+    refresh: '<path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>',
     palette: '<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="15.5" cy="10" r="1"/><path d="M12 21a3 3 0 0 0 0-6 2 2 0 0 1 0-4"/>',
   }[name] || '';
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
